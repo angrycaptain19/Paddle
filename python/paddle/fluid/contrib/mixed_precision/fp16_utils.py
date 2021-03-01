@@ -97,11 +97,13 @@ def _insert_cast_op(block, op, idx, src_dtype, dest_dtype):
     num_cast_ops = 0
 
     for in_name in op.input_names:
-        if src_dtype == core.VarDesc.VarType.FP32 and op.type in [
-                'batch_norm', 'fused_bn_add_activation', 'layer_norm'
-        ]:
-            if in_name not in {'X', 'Z'}:
-                continue
+        if (
+            src_dtype == core.VarDesc.VarType.FP32
+            and op.type
+            in ['batch_norm', 'fused_bn_add_activation', 'layer_norm']
+            and in_name not in {'X', 'Z'}
+        ):
+            continue
         for in_var_name in op.input(in_name):
             in_var = block.var(in_var_name)
             if in_var.type not in _valid_types or in_var.dtype == dest_dtype:
@@ -197,7 +199,7 @@ def find_true_prev_op(ops, cur_op, var_name):
                 if out_var_name == var_name:
                     prev_op.append(op)
     if prev_op:
-        if not len(prev_op) == 1:
+        if len(prev_op) != 1:
             raise ValueError("There must be only one previous op "
                              "that outputs {0} variable".format(var_name))
         else:
@@ -243,11 +245,10 @@ def _is_in_black_varnames(op, amp_lists):
         if in_name in amp_lists.black_varnames:
             return True
 
-    for out_name in op.output_arg_names:
-        if out_name in amp_lists.black_varnames:
-            return True
-
-    return False
+    return any(
+        out_name in amp_lists.black_varnames
+        for out_name in op.output_arg_names
+    )
 
 
 def _need_keep_fp32(op, unsupported_op_list, use_fp16_guard):
@@ -328,7 +329,7 @@ def cast_model_to_fp16(program, amp_lists=None, use_fp16_guard=True):
     for block in program.blocks:
         ops = block.ops
         for op in ops:
-            if op.type == 'create_py_reader' or op.type == 'read':
+            if op.type in ['create_py_reader', 'read']:
                 continue
             if _need_keep_fp32(op, amp_lists.unsupported_list, use_fp16_guard):
                 keep_fp32_ops.add(op)
@@ -455,8 +456,8 @@ def cast_parameters_to_fp16(place, program, scope=None, to_fp16_var_names=None):
     for block in program.blocks:
         all_parameters.extend(block.all_parameters())
 
-    fp16_var_names = to_fp16_var_names if to_fp16_var_names else set()
-    var_scope = scope if scope else global_scope()
+    fp16_var_names = to_fp16_var_names or set()
+    var_scope = scope or global_scope()
     for param in all_parameters:
         if param.name in fp16_var_names:
             _logger.debug("---- cast {} to fp16 dtype ----".format(param.name))

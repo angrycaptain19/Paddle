@@ -22,11 +22,9 @@ import paddle.fluid.incubate.data_generator as dg
 class IMDBDataset(dg.MultiSlotDataGenerator):
     def load_resource(self, dictfile):
         self._vocab = {}
-        wid = 0
         with open(dictfile) as f:
-            for line in f:
+            for wid, line in enumerate(f):
                 self._vocab[line.strip()] = wid
-                wid += 1
         self._unk_id = len(self._vocab)
         self._pattern = re.compile(r'(;|,|\.|\?|!|\s|\(|\))')
         self.return_value = ("words", [1, 2, 3, 4, 5, 6]), ("label", [0])
@@ -59,7 +57,7 @@ class IMDBDataset(dg.MultiSlotDataGenerator):
 
     def generate_sample(self, line):
         def memory_iter():
-            for i in range(1000):
+            for _ in range(1000):
                 yield self.return_value
 
         def data_iter():

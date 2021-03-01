@@ -107,9 +107,8 @@ class DistributedInfer:
         import paddle.distributed.fleet as fleet
 
         varname2tables = self._get_sparse_table_map()
-        convert_program = self._convert_program(self.origin_main_program,
+        return self._convert_program(self.origin_main_program,
                                                 varname2tables)
-        return convert_program
 
     def _convert_program(self, main_program, varname2tables):
         def distributed_ops_pass(program):
@@ -161,12 +160,12 @@ class DistributedInfer:
                     outputs_idxs = [-1] * len(outputs)
 
                     for idx, op in enumerate(program.global_block().ops):
-                        for i in range(0, len(op.output_names)):
+                        for i in range(len(op.output_names)):
                             outs = op.output(op.output_names[i])
                             for in_id, in_var in enumerate(inputs):
                                 if in_var.name in outs:
                                     inputs_idxs[in_id] = idx
-                        for i in range(0, len(op.input_names)):
+                        for i in range(len(op.input_names)):
                             ins = op.input(op.input_names[i])
                             for out_id, out_var in enumerate(outputs):
                                 if out_var.name in ins:

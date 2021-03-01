@@ -110,9 +110,9 @@ def memory_usage(program, batch_size):
     if total_memory > 1024:
         total_memory /= 1024
         unit_str = "KB"
-        if total_memory > 1024:
-            total_memory /= 1024
-            unit_str = "MB"
+    if total_memory > 1024:
+        total_memory /= 1024
+        unit_str = "MB"
 
     # Append extra memory consumption (5% - 10%)
     min_total_memory = total_memory * 1.05

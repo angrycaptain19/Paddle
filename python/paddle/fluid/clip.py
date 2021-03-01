@@ -80,10 +80,7 @@ class ErrorClipByValue(BaseErrorClipAttr):
 
     def __init__(self, max, min=None):
         max = float(max)
-        if min is None:
-            min = -max
-        else:
-            min = float(min)
+        min = -max if min is None else float(min)
         self.max = max
         self.min = min
 
@@ -132,15 +129,14 @@ class ClipGradBase(object):
     def __call__(self, params_grads):
         if framework.in_dygraph_mode():
             return self._dygraph_clip(params_grads)
-        else:
-            for p, g in params_grads:
-                if getattr(p, 'gradient_clip_attr', None) is not None:
-                    warnings.warn(
-                        "'set_gradient_clip' will be ineffective, because you have "
-                        "set 'need_clip' in 'ParamAttr'. So, 'set_gradient_clip' "
-                        "is redundant and you can remove it.")
-                    break
-            return self._static_clip(params_grads)
+        for p, g in params_grads:
+            if getattr(p, 'gradient_clip_attr', None) is not None:
+                warnings.warn(
+                    "'set_gradient_clip' will be ineffective, because you have "
+                    "set 'need_clip' in 'ParamAttr'. So, 'set_gradient_clip' "
+                    "is redundant and you can remove it.")
+                break
+        return self._static_clip(params_grads)
 
     def _process_context(self, context, param, grad):
         raise NotImplementedError()
@@ -216,7 +212,7 @@ class ClipGradByValue(ClipGradBase):
 
     def _static_clip(self, params_grads):
         params_and_grads = []
-        param_new_grad_name_dict = dict()
+        param_new_grad_name_dict = {}
         with framework.name_scope('gradient_clip'):
             for p, g in params_grads:
                 if g is None:
@@ -319,7 +315,7 @@ class ClipGradByNorm(ClipGradBase):
     def _static_clip(self, params_grads):
         params_and_grads = []
         with framework.name_scope('gradient_clip'):
-            param_new_grad_name_dict = dict()
+            param_new_grad_name_dict = {}
             for p, g in params_grads:
                 if g is None:
                     continue
@@ -421,7 +417,7 @@ class ClipGradByGlobalNorm(ClipGradBase):
             sum_square_list.append(sum_square)
 
         # all parameters have been filterd out
-        if len(sum_square_list) == 0:
+        if not sum_square_list:
             return params_grads
 
         global_norm_var = layers.concat(sum_square_list)
@@ -465,7 +461,7 @@ class ClipGradByGlobalNorm(ClipGradBase):
                     sum_square_list.append(sum_square)
 
             # all parameters have been filterd out
-            if len(sum_square_list) == 0:
+            if not sum_square_list:
                 return params_grads
 
             with p.block.program._optimized_guard([p, g]):
@@ -480,7 +476,7 @@ class ClipGradByGlobalNorm(ClipGradBase):
                     y=layers.elementwise_max(
                         x=max_global_norm, y=global_norm_var))
 
-            param_new_grad_name_dict = dict()
+            param_new_grad_name_dict = {}
             for p, g in params_grads:
                 if g is None:
                     continue
@@ -503,7 +499,7 @@ class ClipGradByGlobalNorm(ClipGradBase):
             context[self.group_name + "_clip"] = layers.fill_constant(
                 shape=[1], dtype=grad.dtype, value=self.clip_norm)
         else:
-            if not self.clip_norm == context[self.group_name + "_clip_value"]:
+            if self.clip_norm != context[self.group_name + "_clip_value"]:
                 raise ValueError(
                     "All parameters' 'clip_norm' of a same group should be the same"
                 )
@@ -680,7 +676,7 @@ def append_gradient_clip_ops(param_grads):
             clip_attr._process_context(context=context, param=p, grad=g)
 
     res = []
-    param_new_grad_name_dict = dict()
+    param_new_grad_name_dict = {}
     for p, g in param_grads:
         if g is None:
             continue

@@ -40,9 +40,7 @@ class MetaOptimizerBase(Optimizer):
         return False
 
     def _can_update(self, optimizer):
-        if str(optimizer.__class__.__name__) in self.meta_optimizers_white_list:
-            return True
-        return False
+        return str(optimizer.__class__.__name__) in self.meta_optimizers_white_list
 
     def _disable_strategy(self, dist_strategy):
         raise NotImplementedError("you should implement disable strategy in {}".

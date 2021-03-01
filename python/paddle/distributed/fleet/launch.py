@@ -198,9 +198,10 @@ def get_cluster_from_args(args, device_mode, devices_per_proc):
             x for x in range(start_port, start_port + len(devices_per_proc))
         ]
 
-    trainer_endpoints = []
-    for ip in node_ips:
-        trainer_endpoints.append(["%s:%d" % (ip, port) for port in free_ports])
+    trainer_endpoints = [
+        ["%s:%d" % (ip, port) for port in free_ports] for ip in node_ips
+    ]
+
     return get_cluster(node_ips, node_ip, trainer_endpoints, device_mode,
                        devices_per_proc)
 
@@ -261,14 +262,15 @@ def launch_ps(args, distribute_mode):
     cloud_flag = cloud_utils.use_paddlecloud()
 
     # for ps-cpu on paddlecloud
-    if cloud_flag and distribute_mode == DistributeMode.PS:
-        direct_start(args)
-        return
-    elif cloud_flag and distribute_mode == DistributeMode.PS_HETER:
-        cloud_ps_heter_env_set(args)
-        args.workers = os.getenv("PADDLE_TRAINER_ENDPOINTS")
-        args.servers = os.getenv("PADDLE_PSERVERS_IP_PORT_LIST")
-        args.heter_workers = os.getenv("PADDLE_HETER_TRAINER_IP_PORT_LIST")
+    if cloud_flag:
+        if distribute_mode == DistributeMode.PS:
+            direct_start(args)
+            return
+        elif distribute_mode == DistributeMode.PS_HETER:
+            cloud_ps_heter_env_set(args)
+            args.workers = os.getenv("PADDLE_TRAINER_ENDPOINTS")
+            args.servers = os.getenv("PADDLE_PSERVERS_IP_PORT_LIST")
+            args.heter_workers = os.getenv("PADDLE_HETER_TRAINER_IP_PORT_LIST")
 
     ps_launcher = ParameterServerLauncher(args, distribute_mode)
     ps_launcher.start_ps()
@@ -281,8 +283,6 @@ def which_distributed_mode(args):
         '--workers', '--heter_workers', '--http_port'
     ]
     collective_args = ['--ips']
-
-    ps_heter_args = ["--heter_worker_num", "--heter_workers"]
 
     has_ps_args = [
         ps_arg for ps_arg in ps_args if ps_arg in " ".join(sys.argv[1:-1])
@@ -304,12 +304,14 @@ def which_distributed_mode(args):
     else:
         device_count = 0
 
-    if len(has_ps_args) > 0:
+    if has_ps_args:
         logger.info(
             "Run parameter-sever mode. pserver arguments:{}, cuda or xpu count:{}".
             format(has_ps_args, device_count))
+        ps_heter_args = ["--heter_worker_num", "--heter_workers"]
+
         has_ps_heter_args = list(set(has_ps_args) & set(ps_heter_args))
-        if len(has_ps_heter_args) > 0:
+        if has_ps_heter_args:
             return DistributeMode.PS_HETER
         else:
             return DistributeMode.PS

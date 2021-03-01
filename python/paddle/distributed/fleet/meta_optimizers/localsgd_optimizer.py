@@ -41,10 +41,15 @@ class LocalSGDOptimizer(MetaOptimizerBase):
         if self.role_maker._worker_num() <= 1:
             return False
 
-        return isinstance(self.inner_opt, paddle.optimizer.momentum.Momentum) \
-            or isinstance(self.inner_opt, paddle.fluid.optimizer.Momentum) \
-            or isinstance(self.inner_opt, paddle.optimizer.sgd.SGD) \
-            or isinstance(self.inner_opt, paddle.fluid.optimizer.SGD)
+        return isinstance(
+            self.inner_opt,
+            (
+                paddle.optimizer.momentum.Momentum,
+                paddle.fluid.optimizer.Momentum,
+                paddle.optimizer.sgd.SGD,
+                paddle.fluid.optimizer.SGD,
+            ),
+        )
 
     def _disable_strategy(self, dist_strategy):
         dist_strategy.localsgd = False
@@ -60,10 +65,9 @@ class LocalSGDOptimizer(MetaOptimizerBase):
     def create_snapshot_vars(self, program):
         block = program.global_block()
 
-        non_dist_params = []
-        for param in block.iter_parameters():
-            if not param.is_distributed:
-                non_dist_params.append(param)
+        non_dist_params = [
+            param for param in block.iter_parameters() if not param.is_distributed
+        ]
 
         p2s = []
         for param in non_dist_params:
@@ -211,10 +215,15 @@ class AdaptiveLocalSGDOptimizer(MetaOptimizerBase):
         if self.role_maker._worker_num() <= 1:
             return False
 
-        return isinstance(self.inner_opt, paddle.optimizer.momentum.Momentum) \
-            or isinstance(self.inner_opt, paddle.fluid.optimizer.Momentum) \
-            or isinstance(self.inner_opt, paddle.optimizer.sgd.SGD) \
-            or isinstance(self.inner_opt, paddle.fluid.optimizer.SGD)
+        return isinstance(
+            self.inner_opt,
+            (
+                paddle.optimizer.momentum.Momentum,
+                paddle.fluid.optimizer.Momentum,
+                paddle.optimizer.sgd.SGD,
+                paddle.fluid.optimizer.SGD,
+            ),
+        )
 
     def _disable_strategy(self, dist_strategy):
         dist_strategy.adaptive_localsgd = False
@@ -233,10 +242,9 @@ class AdaptiveLocalSGDOptimizer(MetaOptimizerBase):
     def create_snapshot_vars(self, program):
         block = program.global_block()
 
-        non_dist_params = []
-        for param in block.iter_parameters():
-            if not param.is_distributed:
-                non_dist_params.append(param)
+        non_dist_params = [
+            param for param in block.iter_parameters() if not param.is_distributed
+        ]
 
         p2s = []
         for param in non_dist_params:

@@ -206,7 +206,7 @@ def all_reduce(tensor, op=ReduceOp.SUM, group=0):
     check_variable_and_dtype(
         tensor, 'tensor', ['float16', 'float32', 'float64', 'int32', 'int64'],
         'all_reduce')
-    if not op in [ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN, ReduceOp.PROD]:
+    if op not in [ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN, ReduceOp.PROD]:
         raise ValueError("The op for all_reduce must be one of educeOp.PROD, "
                          "ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN.")
     if op == ReduceOp.SUM:
@@ -282,7 +282,7 @@ def reduce(tensor, dst, op=ReduceOp.SUM, group=0):
     check_variable_and_dtype(
         tensor, 'tensor', ['float16', 'float32', 'float64', 'int32', 'int64'],
         'all_reduce')
-    if not op in [ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN, ReduceOp.PROD]:
+    if op not in [ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN, ReduceOp.PROD]:
         raise ValueError("The op for reduce must be one of educeOp.PROD, "
                          "ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN.")
 
@@ -427,9 +427,7 @@ def scatter(tensor, tensor_list=None, src=0, group=0):
     rank = _default_group.rank
     nranks = _default_group.nranks
     if rank != src:
-        tensor_list = []
-        for _ in range(nranks):
-            tensor_list.append(tensor)
+        tensor_list = [tensor for _ in range(nranks)]
     temp = paddle.concat(tensor_list, axis=0)
     if in_dygraph_mode():
         return core.ops.c_scatter(temp, tensor, 'use_calc_stream', True,
@@ -528,11 +526,7 @@ def _parallel_embedding(x, per_part_embeddings, origin_size, param_attr,
     """
     Parallel Embedding
     """
-    if not name:
-        name = "emb_rank_%d" % inner_rank
-    else:
-        name = name + "_rank_%d" % inner_rank
-
+    name = name + "_rank_%d" % inner_rank if name else "emb_rank_%d" % inner_rank
     origin_num_embeddings = origin_size[0]
     embedding = paddle.nn.Embedding(
         per_part_embeddings,
@@ -672,9 +666,8 @@ def split(x,
         if inner_rank == num_partitions - 1: per_part_size = last_part_size
         per_part_size += 1  # make the last row as the padding index
 
-        emb_out = _parallel_embedding(x, per_part_size, size, weight_attr,
+        return _parallel_embedding(x, per_part_size, size, weight_attr,
                                       inner_rank, num_partitions, name)
-        return emb_out
     else:
         if axis == 0:
             assert size[0] % num_partitions == 0, (
@@ -700,7 +693,7 @@ def split(x,
             raise ValueError("The value of axis must be 0 or 1, but the value "
                              "given is {}.".format(axis))
 
-        linear_out = _parallel_linear(
+        return _parallel_linear(
             x,
             linear_size[0],
             linear_size[1],
@@ -710,4 +703,3 @@ def split(x,
             gather_out,
             inner_rank,
             name=name)
-        return linear_out

@@ -144,7 +144,7 @@ class ShardingOptimizer(MetaOptimizerBase):
         startup_block._sync_with_cpp()
 
         # step 2: split params
-        self._params = set([x[0].name for x in params_grads])
+        self._params = {x[0].name for x in params_grads}
         self._shard.setup(params_grads, self.sharding_rank,
                           self.sharding_group_size)
 
@@ -250,11 +250,13 @@ class ShardingOptimizer(MetaOptimizerBase):
                 reduced_grads.append(output_name)
 
         # prune optimizer state and param
-        pruned_opti_vars = []
-        for var_name in list(block.vars.keys()):
-            if self._shard.is_opti_var(var_name) and \
-              not self._shard.has_opt_var(var_name):
-                pruned_opti_vars.append(var_name)
+        pruned_opti_vars = [
+            var_name
+            for var_name in list(block.vars.keys())
+            if self._shard.is_opti_var(var_name)
+            and not self._shard.has_opt_var(var_name)
+        ]
+
         program_deps = ProgramDeps(block, reduced_grads, pruned_opti_vars)
 
         # Init
@@ -369,7 +371,7 @@ class ShardingOptimizer(MetaOptimizerBase):
                                      shard_allredue_vars)
 
                 broad_cast_vars = [x[0] for x in broadcast_vars]
-                if len(broad_cast_vars) > 0:
+                if broad_cast_vars:
                     insert_sync_comm_ops(block, segment._end_idx,
                                          self.sharding_ring_id, broad_cast_vars)
             else:
@@ -458,10 +460,10 @@ class ShardingOptimizer(MetaOptimizerBase):
 
     def _init_comm(self):
 
+        self.sharding_ring_id = 0
         if self.hybrid_dp:
             self.sharding_group_size = self.user_defined_strategy.sharding_configs[
                 "sharding_group_size"]
-            self.sharding_ring_id = 0
             self.sharding_rank = self.global_rank % self.sharding_group_size
 
             self.dp_group_size = self.global_word_size // self.sharding_group_size
@@ -488,7 +490,6 @@ class ShardingOptimizer(MetaOptimizerBase):
 
             logging.info("Using Sharing&DP mode !")
         else:
-            self.sharding_ring_id = 0
             self.sharding_rank = self.global_rank
             self.sharding_group_size = self.role_maker._worker_num()
             self.sharding_group_endpoints = self.endpoints

@@ -34,7 +34,7 @@ def _create_regularization_of_grad(param, grad, regularization=None):
     if param.regularizer is not None:
         # Add variable for regularization term in grad block
         regularization_term = param.regularizer(param, grad, grad.block)
-    elif regularization is not None:
+    else:
         regularization_term = regularization(param, grad, grad.block)
 
     assert regularization_term is not None
@@ -221,18 +221,17 @@ class L2DecayRegularizer(WeightDecayRegularizer):
 
         if framework.in_dygraph_mode():
             return core.ops.scale(param, "scale", self._regularization_coeff)
-        else:
-            decay = block.create_var(
-                dtype=param.dtype, shape=param.shape, lod_level=param.lod_level)
+        decay = block.create_var(
+            dtype=param.dtype, shape=param.shape, lod_level=param.lod_level)
 
-            # Append Op to calculate decay
-            block.append_op(
-                type='scale',
-                inputs={"X": param},
-                outputs={"Out": decay},
-                attrs={"scale": self._regularization_coeff})
+        # Append Op to calculate decay
+        block.append_op(
+            type='scale',
+            inputs={"X": param},
+            outputs={"Out": decay},
+            attrs={"scale": self._regularization_coeff})
 
-            return decay
+        return decay
 
     def __str__(self):
         return "L2Decay, regularization_coeff=%f" % self._regularization_coeff

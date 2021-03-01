@@ -75,7 +75,7 @@ class GraphExecutionOptimizer(MetaOptimizerBase):
                     type=core.VarDesc.VarType.RAW)
 
             if build_strategy.use_hierarchical_allreduce:
-                for i in range(0, build_strategy.nccl_comm_num):
+                for i in range(build_strategy.nccl_comm_num):
                     startup_program.global_block().create_var(
                         name="Hierarchical_inter_NCCLID_{}".format(i),
                         persistable=True,
@@ -229,7 +229,7 @@ class GraphExecutionOptimizer(MetaOptimizerBase):
                  startup_program=None,
                  parameter_list=None,
                  no_grad_set=None):
-        if startup_program == None:
+        if startup_program is None:
             startup_program = paddle.static.default_startup_program()
         compiled_program = self._try_to_compile(startup_program,
                                                 loss.block.program, loss)

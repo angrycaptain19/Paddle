@@ -17,7 +17,7 @@ import paddle.distributed.fleet as fleet
 class SyntheticData(fleet.MultiSlotDataGenerator):
     def generate_sample(self, line):
         def data_iter():
-            for i in range(10000):
+            for _ in range(10000):
                 yield ("words", [1, 2, 3, 4]), ("label", [0])
 
         return data_iter
@@ -26,7 +26,7 @@ class SyntheticData(fleet.MultiSlotDataGenerator):
 class SyntheticStringData(fleet.MultiSlotStringDataGenerator):
     def generate_sample(self, line):
         def data_iter():
-            for i in range(10000):
+            for _ in range(10000):
                 yield [("words", ["1", "2", "3", "4"]), ("label", ["0"])]
 
         return data_iter

@@ -215,11 +215,9 @@ def auc(stat_pos, stat_neg, scope=None, util=None):
 
     auc_value = None
     if pos * neg == 0 or total_ins_num == 0:
-        auc_value = 0.5
+        return 0.5
     else:
-        auc_value = area / (pos * neg)
-
-    return auc_value
+        return area / (pos * neg)
 
 
 def mae(abserr, total_ins_num, scope=None, util=None):
@@ -267,8 +265,7 @@ def mae(abserr, total_ins_num, scope=None, util=None):
     global_metric = global_metric.reshape(old_metric_shape)
     global_total_num = util.all_reduce(total_ins_num, "sum")
 
-    mae_value = float(global_metric[0]) / float(global_total_num[0])
-    return mae_value
+    return float(global_metric[0]) / float(global_total_num[0])
 
 
 def rmse(sqrerr, total_ins_num, scope=None, util=None):
@@ -315,9 +312,7 @@ def rmse(sqrerr, total_ins_num, scope=None, util=None):
     global_metric = global_metric.reshape(old_metric_shape)
     global_total_num = util.all_reduce(total_ins_num, "sum")
 
-    rmse_value = math.sqrt(float(global_metric[0]) / float(global_total_num[0]))
-
-    return rmse_value
+    return math.sqrt(float(global_metric[0]) / float(global_total_num[0]))
 
 
 def mse(sqrerr, total_ins_num, scope=None, util=None):
@@ -364,8 +359,7 @@ def mse(sqrerr, total_ins_num, scope=None, util=None):
     global_metric = global_metric.reshape(old_metric_shape)
     global_total_num = util.all_reduce(total_ins_num, "sum")
 
-    mse_value = float(global_metric[0]) / float(global_total_num[0])
-    return mse_value
+    return float(global_metric[0]) / float(global_total_num[0])
 
 
 def acc(correct, total, scope=None, util=None):

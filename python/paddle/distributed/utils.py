@@ -52,9 +52,10 @@ def get_cluster_from_args(args, selected_gpus):
             x for x in range(started_port, started_port + len(selected_gpus))
         ]
 
-    trainer_endpoints = []
-    for ip in node_ips:
-        trainer_endpoints.append(["%s:%d" % (ip, port) for port in free_ports])
+    trainer_endpoints = [
+        ["%s:%d" % (ip, port) for port in free_ports] for ip in node_ips
+    ]
+
     return get_cluster(node_ips, node_ip, trainer_endpoints, selected_gpus)
 
 
@@ -62,7 +63,7 @@ def get_gpus(selected_gpus):
     if selected_gpus is None:
         from paddle.fluid import core
         gpus_num = core.get_cuda_device_count()
-        gpus = [str(x) for x in range(0, gpus_num)]
+        gpus = [str(x) for x in range(gpus_num)]
     else:
         cuda_visible_devices = os.getenv("CUDA_VISIBLE_DEVICES")
         if cuda_visible_devices is None or cuda_visible_devices == "":
@@ -139,10 +140,7 @@ class Cluster(object):
             if a != b:
                 return False
 
-        if self.job_stage_flag != cluster.job_stage_flag:
-            return False
-
-        return True
+        return self.job_stage_flag == cluster.job_stage_flag
 
     def __ne__(self, cluster):
         return not self.__eq__(cluster)
@@ -213,11 +211,7 @@ class Trainer(object):
                 self.rank != t.rank:
             return False
 
-        for a, b in zip(self.gpus, t.gpus):
-            if a != b:
-                return False
-
-        return True
+        return all(a == b for a, b in zip(self.gpus, t.gpus))
 
     def __ne__(self, t):
         return not self == t
@@ -271,10 +265,7 @@ class Pod(object):
         return self.rank
 
     def get_visible_gpus(self):
-        r = ""
-        for g in self.gpus:
-            r += "{},".format(g)
-
+        r = "".join("{},".format(g) for g in self.gpus)
         assert r != "", "this pod {} can't see any gpus".format(self)
 
         r = r[:-1]
@@ -331,7 +322,7 @@ def terminate_local_procs(procs):
 
     #wait all process terminiated
     time.sleep(3)
-    for step in range(0, 50):
+    for _ in range(50):
         alive = False
         for p in procs:
             if p.proc.poll() is None:  # not termniate
@@ -401,14 +392,13 @@ def find_free_ports(num):
 
 
 def _prepare_trainer_env(cluster, trainer):
-    proc_env = {
-        "FLAGS_selected_gpus": "%s" % ",".join([str(g) for g in trainer.gpus]),
+    return {
+        "FLAGS_selected_gpus": "%s" % ",".join(str(g) for g in trainer.gpus),
         "PADDLE_TRAINER_ID": "%d" % trainer.rank,
         "PADDLE_CURRENT_ENDPOINT": "%s" % trainer.endpoint,
         "PADDLE_TRAINERS_NUM": "%d" % cluster.trainers_nranks(),
-        "PADDLE_TRAINER_ENDPOINTS": ",".join(cluster.trainers_endpoints())
+        "PADDLE_TRAINER_ENDPOINTS": ",".join(cluster.trainers_endpoints()),
     }
-    return proc_env
 
 
 class TrainerProc(object):

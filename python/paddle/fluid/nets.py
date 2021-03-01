@@ -129,7 +129,7 @@ def simple_img_conv_pool(input,
         act=act,
         use_cudnn=use_cudnn)
 
-    pool_out = layers.pool2d(
+    return layers.pool2d(
         input=conv_out,
         pool_size=pool_size,
         pool_type=pool_type,
@@ -137,7 +137,6 @@ def simple_img_conv_pool(input,
         pool_padding=pool_padding,
         global_pooling=global_pooling,
         use_cudnn=use_cudnn)
-    return pool_out
 
 
 def img_conv_group(input,
@@ -219,9 +218,8 @@ def img_conv_group(input,
     def __extend_list__(obj):
         if not hasattr(obj, '__len__'):
             return [obj] * len(conv_num_filter)
-        else:
-            assert len(obj) == len(conv_num_filter)
-            return obj
+        assert len(obj) == len(conv_num_filter)
+        return obj
 
     conv_padding = __extend_list__(conv_padding)
     conv_filter_size = __extend_list__(conv_filter_size)
@@ -328,8 +326,7 @@ def sequence_conv_pool(input,
         bias_attr=bias_attr,
         act=act)
 
-    pool_out = layers.sequence_pool(input=conv_out, pool_type=pool_type)
-    return pool_out
+    return layers.sequence_pool(input=conv_out, pool_type=pool_type)
 
 
 def glu(input, dim=-1):
@@ -375,8 +372,7 @@ def glu(input, dim=-1):
                              "glu")
     a, b = layers.split(input, num_or_sections=2, dim=dim)
     act_b = layers.sigmoid(x=b)
-    out = layers.elementwise_mul(x=a, y=act_b)
-    return out
+    return layers.elementwise_mul(x=a, y=act_b)
 
 
 def scaled_dot_product_attention(queries,

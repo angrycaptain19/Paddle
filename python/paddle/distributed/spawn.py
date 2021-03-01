@@ -257,14 +257,13 @@ class MultiprocessContext(object):
     def _throw_exception(self, error_index):
         if self.error_queues[error_index].empty():
             exitcode = self.processes[error_index].exitcode
-            if exitcode < 0:
-                name = signal.Signals(-exitcode).name
-                raise Exception("Process %d terminated with signal %s." %
-                                (error_index, name))
-            else:
+            if exitcode >= 0:
                 raise Exception("Process %d terminated with exit code %d." & (
                     error_index, exitcode))
 
+            name = signal.Signals(-exitcode).name
+            raise Exception("Process %d terminated with signal %s." %
+                            (error_index, name))
         original_trace = self.error_queues[error_index].get()
         msg = "\n\n----------------------------------------------\n" \
               "Process %d terminated with the following error:\n" \

@@ -191,14 +191,13 @@ class DataToLoDTensorConverter(object):
 
     def done(self):
         arr = np.array(self.data, dtype=self.dtype)
-        if self.shape:
-            if len(arr.shape) != len(self.shape):
-                try:
-                    arr = arr.reshape(self.shape)
-                except ValueError:
-                    raise ValueError(
-                        "Reshape error. What is defined in data layer is {}, but receive {}"
-                        .format(self.shape, arr.shape))
+        if self.shape and len(arr.shape) != len(self.shape):
+            try:
+                arr = arr.reshape(self.shape)
+            except ValueError:
+                raise ValueError(
+                    "Reshape error. What is defined in data layer is {}, but receive {}"
+                    .format(self.shape, arr.shape))
         t = core.LoDTensor()
         t.set(arr, self.place)
         if self.lod_level > 0:
@@ -363,16 +362,12 @@ class DataFeeder(object):
                 print(result['data_3'])
 
         """
-        converter = []
-        for lod_level, shape, dtype in six.moves.zip(
-                self.feed_lod_level, self.feed_shapes, self.feed_dtypes):
-            converter.append(
-                DataToLoDTensorConverter(
+        converter = [DataToLoDTensorConverter(
                     place=self.place,
                     lod_level=lod_level,
                     shape=shape,
-                    dtype=dtype))
-
+                    dtype=dtype) for lod_level, shape, dtype in six.moves.zip(
+                self.feed_lod_level, self.feed_shapes, self.feed_dtypes)]
         for each_sample in iterable:
             assert len(each_sample) == len(converter), (
                 "The number of fields in data (%d) does not match " +
@@ -380,11 +375,12 @@ class DataFeeder(object):
             for each_converter, each_slot in six.moves.zip(converter,
                                                            each_sample):
                 each_converter.feed(each_slot)
-        ret_dict = {}
-        for each_name, each_converter in six.moves.zip(self.feed_names,
-                                                       converter):
-            ret_dict[each_name] = each_converter.done()
-        return ret_dict
+        return {
+            each_name: each_converter.done()
+            for each_name, each_converter in six.moves.zip(
+                self.feed_names, converter
+            )
+        }
 
     def feed_parallel(self, iterable, num_places=None):
         """

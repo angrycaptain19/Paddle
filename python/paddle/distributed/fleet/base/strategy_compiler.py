@@ -94,10 +94,7 @@ def maximum_path_len_algo(optimizer_list):
     topo_sort(edge, indegree)
     max_path = floyd(edge)
 
-    candidate = []
-    for idx in max_path:
-        candidate.append(optimizer_list[idx])
-
+    candidate = [optimizer_list[idx] for idx in max_path]
     for idx, opt in enumerate(candidate[:-1]):
         opt._update_inner_optimizer(candidate[idx + 1])
 
@@ -143,11 +140,11 @@ class StrategyCompiler(StrategyCompilerBase):
         valid_strategy = copy.deepcopy(dist_strategy)
         invalid_optimizers = []
         for candidate in self._meta_optimizer_candidates:
-            is_valid = False
-            for valid in self._meta_optimizers:
-                if candidate.__class__.__name__ == valid.__class__.__name__:
-                    is_valid = True
-                    break
+            is_valid = any(
+                candidate.__class__.__name__ == valid.__class__.__name__
+                for valid in self._meta_optimizers
+            )
+
             if not is_valid:
                 invalid_optimizers.append(candidate)
         for opt in invalid_optimizers:
@@ -177,35 +174,34 @@ class StrategyCompiler(StrategyCompilerBase):
 
         if len(meta_optimizer_list) == 0 and len(graph_optimizer_list) == 0:
             return optimizer, None
-        else:
-            # currently, we use heuristic algorithm to select
-            # meta optimizers combinations
-            meta_optimizers = maximum_path_len_algo(meta_optimizer_list)
-            graph_optimizers = maximum_path_len_algo(graph_optimizer_list)
-            # should design a distributed strategy update interface
-            # when we have finally decided the combination of meta_optimizer
-            # and graph_optimizer, the corresponding distributed strategy
-            # should be updated.
+        # currently, we use heuristic algorithm to select
+        # meta optimizers combinations
+        meta_optimizers = maximum_path_len_algo(meta_optimizer_list)
+        graph_optimizers = maximum_path_len_algo(graph_optimizer_list)
+        # should design a distributed strategy update interface
+        # when we have finally decided the combination of meta_optimizer
+        # and graph_optimizer, the corresponding distributed strategy
+        # should be updated.
 
-            self._meta_optimizers = [] if meta_optimizers is None else meta_optimizers
-            self._graph_optimizers = [] if graph_optimizers is None else graph_optimizers
+        self._meta_optimizers = [] if meta_optimizers is None else meta_optimizers
+        self._graph_optimizers = [] if graph_optimizers is None else graph_optimizers
 
-            return_meta = None if meta_optimizers == None else meta_optimizers[
+        return_meta = None if meta_optimizers == None else meta_optimizers[
+            0]
+        return_graph = None if graph_optimizers is None else graph_optimizers[
                 0]
-            return_graph = None if graph_optimizers == None else graph_optimizers[
-                0]
 
-            if meta_optimizers == None or graph_optimizers == None:
-                return return_meta, return_graph
-
-            # do heuristic filter here, if any meta optimizer in graph optimizers is in 
-            # any meta optimizers' black list, set return_graph to None
-            need_graph_opt = True
-            for graph_opt in graph_optimizers:
-                for program_opt in meta_optimizers:
-                    if graph_opt.__class__.__name__ in program_opt.meta_optimizers_black_list:
-                        need_graph_opt = False
-            if not need_graph_opt:
-                return_graph = None
-
+        if meta_optimizers is None or graph_optimizers == None:
             return return_meta, return_graph
+
+        # do heuristic filter here, if any meta optimizer in graph optimizers is in 
+        # any meta optimizers' black list, set return_graph to None
+        need_graph_opt = True
+        for graph_opt in graph_optimizers:
+            for program_opt in meta_optimizers:
+                if graph_opt.__class__.__name__ in program_opt.meta_optimizers_black_list:
+                    need_graph_opt = False
+        if not need_graph_opt:
+            return_graph = None
+
+        return return_meta, return_graph

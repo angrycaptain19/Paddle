@@ -36,7 +36,7 @@ class ParameterServerOptimizer(MetaOptimizerBase):
             return False
 
         k_steps = self.user_defined_strategy.a_sync_configs["k_steps"]
-        return True if k_steps >= 0 else False
+        return k_steps >= 0
 
     def _get_distributed_strategy(self):
         from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler.distributed_strategy import StrategyFactory
@@ -125,8 +125,6 @@ class ParameterServerOptimizer(MetaOptimizerBase):
         if not compiled_config.is_geo_mode():
 
             from paddle.fluid.incubate.fleet.parameter_server.ir.public import _get_optimize_ops
-            is_sgd_adam = False
-
             main_program = compiled_config.get_origin_main_program()
             ops = _get_optimize_ops(main_program)
 
@@ -139,11 +137,7 @@ class ParameterServerOptimizer(MetaOptimizerBase):
             _add_lr_decay_table_pass(main_program, compiled_config,
                                      lr_decay_steps)
 
-            for op in ops:
-                if op.type in ["sgd", "adam"]:
-                    is_sgd_adam = True
-                    break
-
+            is_sgd_adam = any(op.type in ["sgd", "adam"] for op in ops)
             if is_sgd_adam:
                 return _main, _startup
 
@@ -161,17 +155,14 @@ class ParameterServerOptimizer(MetaOptimizerBase):
                 _main = server.delete_unused_in_main_pass(_main,
                                                           compiled_config)
 
-            _startup = server.delete_unused_in_startup_pass(_startup, _main,
-                                                            compiled_config)
         else:
             _main = server.add_listen_and_serv_pass(_main, compiled_config)
             _main = server.add_rpc_global_flags_pass(_main, compiled_config)
             _main = server.add_geo_optimizer_pass(_main, compiled_config)
             _startup = server.build_pserver_startup_program_pass(
                 _startup, _main, compiled_config)
-            _startup = server.delete_unused_in_startup_pass(_startup, _main,
-                                                            compiled_config)
-
+        _startup = server.delete_unused_in_startup_pass(_startup, _main,
+                                                        compiled_config)
         return _main, _startup
 
     def _can_apply_geo(self, dist_strategy, program):
@@ -196,8 +187,7 @@ class ParameterServerOptimizer(MetaOptimizerBase):
                     for line in f:
                         fields = line.split()
                         mems[fields[0]] = int(fields[1]) * 1024
-                free = mems[b'MemFree:']
-                return free
+                return mems[b'MemFree:']
             else:
                 raise ValueError(
                     "%s platform is unsupported is parameter server optimizer" %
@@ -310,8 +300,5 @@ class ParameterServerOptimizer(MetaOptimizerBase):
         is_geo = self._can_apply_geo(dist_strategy,
                                      context["origin_main_program"])
 
-        if is_geo:
-            a_sync_configs["k_steps"] = 800
-        else:
-            a_sync_configs["k_steps"] = 0
+        a_sync_configs["k_steps"] = 800 if is_geo else 0
         dist_strategy.a_sync_configs = a_sync_configs

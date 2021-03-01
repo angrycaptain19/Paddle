@@ -156,9 +156,7 @@ class BasicGRUUnit(Layer):
         candidate = layers.elementwise_add(candidate, self._candidate_bias)
 
         c = self._activation(candidate)
-        new_hidden = u * pre_hidden + (1 - u) * c
-
-        return new_hidden
+        return u * pre_hidden + (1 - u) * c
 
 
 def basic_gru(input,

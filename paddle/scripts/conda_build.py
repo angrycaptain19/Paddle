@@ -29,9 +29,7 @@ def parse_args():
         type=str,
         required=True,
         help="paddle version for conda build.")
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 
 class ConstantVar:
@@ -186,7 +184,7 @@ def meta_build_linux(var,
                      build_var,
                      build_name_str,
                      cuda_str=None):
-    if cuda_str == None:
+    if cuda_str is None:
         package_str = """
 package:
   name: paddlepaddle
@@ -199,7 +197,7 @@ package:
     requirement = var.requirement_build + python_str + var.requirement_run + python_str
     meta_build = var.build + build_name_str
     meta_str = package_str + meta_build + requirement
-    if not (cuda_str == None):
+    if cuda_str is not None:
         meta_str = meta_str + cuda_str
     meta_str = meta_str + var.test + var.about
 
@@ -219,7 +217,7 @@ def meta_build_windows(var,
                        blt_var,
                        build_name_str,
                        cuda_str=None):
-    if cuda_str == None:
+    if cuda_str is None:
         package_str = """
 package:
   name: paddlepaddle
@@ -233,13 +231,13 @@ package:
     requirement = var.requirement_build + python_str + var.requirement_run_windows + python_str
     meta_build = var.build + build_name_str
     meta_str = package_str + meta_build + requirement
-    if (python_str == var.python27 or python_str == var.python35):
+    if python_str in [var.python27, var.python35]:
         meta_str = meta_str + """
     - matplotlib<=2.2.4"""
     else:
         meta_str = meta_str + """
     - matplotlib"""
-    if not (cuda_str == None):
+    if cuda_str is not None:
         meta_str = meta_str + cuda_str
 
     blt_str = var.blt_const + blt_var

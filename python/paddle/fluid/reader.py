@@ -58,18 +58,16 @@ def keep_data_loader_order(*args):
     global KEEP_DATA_LOADER_ORDER
     if len(args) == 0:
         return KEEP_DATA_LOADER_ORDER
-    else:
-        assert len(args) == 1 and isinstance(args[0], bool)
-        KEEP_DATA_LOADER_ORDER = args[0]
+    assert len(args) == 1 and isinstance(args[0], bool)
+    KEEP_DATA_LOADER_ORDER = args[0]
 
 
 def use_pinned_memory(*args):
     global USE_PINNED_MEMORY
     if len(args) == 0:
         return USE_PINNED_MEMORY
-    else:
-        assert len(args) == 1 and isinstance(args[0], bool)
-        USE_PINNED_MEMORY = args[0]
+    assert len(args) == 1 and isinstance(args[0], bool)
+    USE_PINNED_MEMORY = args[0]
 
 
 def _convert_places(places):
@@ -346,8 +344,7 @@ class DataLoader(object):
         self.places = _convert_places(places)
 
         assert num_workers >= 0, "num_workers should be a non-negative value"
-        if num_workers > 0 and (sys.platform == 'darwin' or
-                                sys.platform == 'win32'):
+        if num_workers > 0 and sys.platform in ['darwin', 'win32']:
             warnings.warn(
                 "DataLoader with multi-process mode is not supported on MacOs and Windows currently." \
                 " Please use signle-process mode with num_workers = 0 instead")
@@ -832,8 +829,7 @@ class DygraphGeneratorLoader(DataLoaderBase):
 
         # NOTE: the multiprocessing in different platform is incompatible, we will solve it later
         self._use_multiprocess = use_multiprocess
-        if self._use_multiprocess and (sys.platform == 'darwin' or
-                                       sys.platform == 'win32'):
+        if self._use_multiprocess and sys.platform in ['darwin', 'win32']:
             warnings.warn(
                 "NOTE: DygraphGeneratorLoader with multiprocess mode is not currently supported on MacOs and Windows."
             )
@@ -931,14 +927,13 @@ class DygraphGeneratorLoader(DataLoaderBase):
             self._thread = threading.Thread(
                 target=self._reader_thread_loop_for_multiprocess,
                 args=(_current_expected_place(), ))
-            self._thread.daemon = True
-            self._thread.start()
         else:
             self._thread = threading.Thread(
                 target=self._reader_thread_loop_for_singleprocess,
                 args=(_current_expected_place(), ))
-            self._thread.daemon = True
-            self._thread.start()
+
+        self._thread.daemon = True
+        self._thread.start()
 
     def _reset(self):
         self._reader.reset()
@@ -1313,12 +1308,7 @@ class GeneratorLoader(DataLoaderBase):
             places = _get_paddle_place_list(places)
         else:
             places = _get_paddle_place(places)
-        has_lod = False
-        for f in self._feed_list:
-            if f.lod_level != 0:
-                has_lod = True
-                break
-
+        has_lod = any(f.lod_level != 0 for f in self._feed_list)
         if has_lod:
             self.set_sample_list_generator(
                 paddle.batch(
@@ -1840,7 +1830,7 @@ class DatasetLoader(DataLoaderBase):
         assert len(dataset.filelist) >= thread_num, \
             "Filelist number of dataset {} must be not less than place number {}".format(len(dataset.filelist), thread_num)
 
-        if dataset.thread_num != 0 and dataset.thread_num != thread_num:
+        if dataset.thread_num not in [0, thread_num]:
             logging.warn('thread_num {} which is set in Dataset is ignored'.
                          format(dataset.thread_num))
 

@@ -25,10 +25,8 @@ logger.setLevel(logging.INFO)
 def load_vocab(filename):
     vocab = {}
     with open(filename) as f:
-        wid = 0
-        for line in f:
+        for wid, line in enumerate(f):
             vocab[line.strip()] = wid
-            wid += 1
     vocab["<unk>"] = len(vocab)
     return vocab
 

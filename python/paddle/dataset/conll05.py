@@ -47,14 +47,16 @@ UNK_IDX = 0
 
 
 def load_label_dict(filename):
-    d = dict()
-    tag_dict = set()
+    d = {}
     with open(filename, 'r') as f:
+        tag_dict = set()
         for i, line in enumerate(f):
             line = line.strip()
-            if line.startswith("B-"):
-                tag_dict.add(line[2:])
-            elif line.startswith("I-"):
+            if (
+                line.startswith("B-")
+                or not line.startswith("B-")
+                and line.startswith("I-")
+            ):
                 tag_dict.add(line[2:])
         index = 0
         for tag in tag_dict:
@@ -67,7 +69,7 @@ def load_label_dict(filename):
 
 
 def load_dict(filename):
-    d = dict()
+    d = {}
     with open(filename, 'r') as f:
         for i, line in enumerate(f):
             d[line.strip()] = i
@@ -88,7 +90,7 @@ def corpus_reader(data_path, words_name, props_name):
         wf = tf.extractfile(words_name)
         pf = tf.extractfile(props_name)
         with gzip.GzipFile(fileobj=wf) as words_file, gzip.GzipFile(
-                fileobj=pf) as props_file:
+                    fileobj=pf) as props_file:
             sentences = []
             labels = []
             one_seg = []
@@ -102,20 +104,16 @@ def corpus_reader(data_path, words_name, props_name):
                         labels.append(a_kind_lable)
 
                     if len(labels) >= 1:
-                        verb_list = []
-                        for x in labels[0]:
-                            if x != '-':
-                                verb_list.append(x)
-
+                        verb_list = [x for x in labels[0] if x != '-']
+                        verb_word = ''
                         for i, lbl in enumerate(labels[1:]):
                             cur_tag = 'O'
                             is_in_bracket = False
                             lbl_seq = []
-                            verb_word = ''
                             for l in lbl:
-                                if l == '*' and is_in_bracket == False:
+                                if l == '*' and not is_in_bracket:
                                     lbl_seq.append('O')
-                                elif l == '*' and is_in_bracket == True:
+                                elif l == '*':
                                     lbl_seq.append('I-' + cur_tag)
                                 elif l == '*)':
                                     lbl_seq.append('I-' + cur_tag)

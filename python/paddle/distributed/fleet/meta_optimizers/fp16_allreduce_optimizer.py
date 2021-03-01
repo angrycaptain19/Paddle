@@ -40,10 +40,7 @@ class FP16AllReduceOptimizer(MetaOptimizerBase):
         if not self.role_maker._is_collective:
             return False
 
-        if self.user_defined_strategy.fp16_allreduce:
-            return True
-
-        return False
+        return bool(self.user_defined_strategy.fp16_allreduce)
 
     def _disable_strategy(self, dist_strategy):
         dist_strategy.fp16_allreduce = False

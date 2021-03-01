@@ -61,12 +61,14 @@ class PipelineHelper(object):
 
         pipeline_num = len(endpoints) // inner_parallelism
         if pipeline_num == 1: return
-        # Create rings for gpus with the same pipeline id for data parallel
-        eps = []
         pipeline_rank = rank % inner_parallelism
         ring_id = pipeline_rank + 1
-        for i in range(pipeline_num):
-            eps.append(endpoints[i * inner_parallelism + pipeline_rank])
+        # Create rings for gpus with the same pipeline id for data parallel
+        eps = [
+            endpoints[i * inner_parallelism + pipeline_rank]
+            for i in range(pipeline_num)
+        ]
+
         # rank in a ring of gpus with the same pipeline id for data parallel
         dp_rank = rank // inner_parallelism
         self._init_communicator(self.startup_program, current_endpoint, eps,
@@ -152,9 +154,7 @@ class PipelineOptimizer(MetaOptimizerBase):
         if not self.role_maker._is_collective:
             return False
 
-        if self.user_defined_strategy.pipeline == True:
-            return True
-        return False
+        return self.user_defined_strategy.pipeline == True
 
     def _disable_strategy(self, dist_strategy):
         dist_strategy.pipeline = False
@@ -183,7 +183,7 @@ class PipelineOptimizer(MetaOptimizerBase):
         self.nranks = self.role_maker._worker_num()
         assert self.nranks % node_num == 0
 
-        loss.block.program._pipeline_opt = dict()
+        loss.block.program._pipeline_opt = {}
         loss.block.program._pipeline_opt['local_rank'] = self.rank
         optimize_ops, params_grads, prog_list = self.wrapped_opt.minimize(
             loss, startup_program, parameter_list, no_grad_set)

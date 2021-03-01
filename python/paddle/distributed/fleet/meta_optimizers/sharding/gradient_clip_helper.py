@@ -60,11 +60,13 @@ class GradientClipHelper(object):
             if idx in deperate_op_idx:
                 block._remove_op(idx, sync=False)
                 continue
-            reversed_inputs = []
             if op.type == "sum":
-                for input_name in op.desc.input_arg_names():
-                    if input_name not in deperated_vars:
-                        reversed_inputs.append(input_name)
+                reversed_inputs = [
+                    input_name
+                    for input_name in op.desc.input_arg_names()
+                    if input_name not in deperated_vars
+                ]
+
                 op.desc.set_input("X", reversed_inputs)
                 assert (len(op.desc.output_arg_names()) == 1)
                 sum_res = op.desc.output_arg_names()[0]

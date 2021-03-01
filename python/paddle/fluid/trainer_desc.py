@@ -284,7 +284,6 @@ class MultiTrainer(TrainerDesc):
 
     def __init__(self):
         super(MultiTrainer, self).__init__()
-        pass
 
     def _set_program(self, program):
         super(MultiTrainer, self)._set_program(program)
@@ -306,7 +305,6 @@ class DistMultiTrainer(TrainerDesc):
 
     def __init__(self):
         super(DistMultiTrainer, self).__init__()
-        pass
 
     def _set_program(self, program):
         super(DistMultiTrainer, self)._set_program(program)
@@ -315,7 +313,7 @@ class DistMultiTrainer(TrainerDesc):
     def _gen_trainer_desc(self):
         super(DistMultiTrainer, self)._gen_trainer_desc()
         self.proto_desc.class_name = "DistMultiTrainer"
-        if self._program == None:
+        if self._program is None:
             raise RuntimeError("None Program")
         self._device_worker._set_infer(self._infer)
         self._device_worker._set_program(self._program)
@@ -330,7 +328,6 @@ class HeterXpuTrainer(TrainerDesc):
 
     def __init__(self):
         super(HeterXpuTrainer, self).__init__()
-        pass
 
     def _set_program(self, program):
         super(HeterXpuTrainer, self)._set_program(program)
@@ -339,7 +336,7 @@ class HeterXpuTrainer(TrainerDesc):
     def _gen_trainer_desc(self):
         super(HeterXpuTrainer, self)._gen_trainer_desc()
         self.proto_desc.class_name = "HeterXpuTrainer"
-        if self._program == None:
+        if self._program is None:
             raise RuntimeError("None Program")
         self._device_worker._set_infer(self._infer)
         self._device_worker._set_program(self._program)
@@ -354,7 +351,6 @@ class HeterBoxTrainer(TrainerDesc):
 
     def __init__(self):
         super(HeterBoxTrainer, self).__init__()
-        pass
 
     def _set_program(self, program):
         super(HeterBoxTrainer, self)._set_program(program)
@@ -363,7 +359,7 @@ class HeterBoxTrainer(TrainerDesc):
     def _gen_trainer_desc(self):
         super(HeterBoxTrainer, self)._gen_trainer_desc()
         self.proto_desc.class_name = "HeterBoxTrainer"
-        if self._program == None:
+        if self._program is None:
             raise RuntimeError("None Program")
         self._device_worker._set_infer(self._infer)
         self._device_worker._set_program(self._program)
@@ -378,7 +374,6 @@ class PSGPUTrainer(TrainerDesc):
 
     def __init__(self):
         super(PSGPUTrainer, self).__init__()
-        pass
 
     def _set_program(self, program):
         super(PSGPUTrainer, self)._set_program(program)
@@ -387,7 +382,7 @@ class PSGPUTrainer(TrainerDesc):
     def _gen_trainer_desc(self):
         super(PSGPUTrainer, self)._gen_trainer_desc()
         self.proto_desc.class_name = "PSGPUTrainer"
-        if self._program == None:
+        if self._program is None:
             raise RuntimeError("None Program")
         self._device_worker._set_infer(self._infer)
         self._device_worker._set_program(self._program)
@@ -402,7 +397,6 @@ class PipelineTrainer(TrainerDesc):
 
     def __init__(self):
         super(PipelineTrainer, self).__init__()
-        pass
 
     def _set_program(self, program):
         super(PipelineTrainer, self)._set_program(program)
@@ -411,7 +405,7 @@ class PipelineTrainer(TrainerDesc):
     def _gen_trainer_desc(self):
         super(PipelineTrainer, self)._gen_trainer_desc()
         self.proto_desc.class_name = "PipelineTrainer"
-        if self._program == None:
+        if self._program is None:
             raise RuntimeError("None Program")
         self._device_worker._set_infer(self._infer)
         self._device_worker._set_program(self._program)

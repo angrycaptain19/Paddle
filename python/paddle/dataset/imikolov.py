@@ -57,13 +57,13 @@ def build_dict(min_word_freq=50):
     Build a word dictionary from the corpus,  Keys of the dictionary are words,
     and values are zero-based IDs of these words.
     """
-    train_filename = './simple-examples/data/ptb.train.txt'
-    test_filename = './simple-examples/data/ptb.valid.txt'
     with tarfile.open(
-            paddle.dataset.common.download(paddle.dataset.imikolov.URL,
-                                           'imikolov',
-                                           paddle.dataset.imikolov.MD5)) as tf:
+                paddle.dataset.common.download(paddle.dataset.imikolov.URL,
+                                               'imikolov',
+                                               paddle.dataset.imikolov.MD5)) as tf:
+        train_filename = './simple-examples/data/ptb.train.txt'
         trainf = tf.extractfile(train_filename)
+        test_filename = './simple-examples/data/ptb.valid.txt'
         testf = tf.extractfile(test_filename)
         word_freq = word_count(testf, word_count(trainf))
         if '<unk>' in word_freq:

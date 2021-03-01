@@ -52,11 +52,8 @@ class RecomputeOptimizer(MetaOptimizerBase):
             return False
 
         if self.user_defined_strategy.recompute == True:
-            if len(self.user_defined_strategy.recompute_configs[
-                    "checkpoints"]) == 0:
-                return False
-            else:
-                return True
+            return len(self.user_defined_strategy.recompute_configs[
+                    "checkpoints"]) != 0
 
     def _disable_strategy(self, dist_strategy):
         dist_strategy.recompute = False

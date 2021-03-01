@@ -38,27 +38,23 @@ def _place_obj(place):
 
 
 def _is_pserver_mode(main_program):
-    main = main_program if main_program \
-        else framework.default_main_program()
-    for op in main.global_block().ops:
-        if op.type in ["send", "recv"]:
-            return True
-    return False
+    main = main_program or framework.default_main_program()
+    return any(op.type in ["send", "recv"] for op in main.global_block().ops)
 
 
 def _has_backward_op(graph):
-    for node in graph.nodes():
-        if node.is_op() and node.op() is not None and \
-                node.op().type().endswith("_grad"):
-            return True
-    return False
+    return any(node.is_op() and node.op() is not None and \
+                node.op().type().endswith("_grad") for node in graph.nodes())
 
 
 def _prune_feed_ops(program):
     # prune the feed ops in the program.
-    pop_idx = []
-    for i, op in enumerate(program.global_block().ops):
-        if op.type == "feed": pop_idx.append(i)
+    pop_idx = [
+        i
+        for i, op in enumerate(program.global_block().ops)
+        if op.type == "feed"
+    ]
+
     for index in pop_idx[::-1]:
         program.global_block()._remove_op(index)
 
@@ -291,9 +287,10 @@ class CompiledProgram(object):
         if _has_backward_op(self._graph):
             assert self._loss_name is not None, "The loss name of CompiledProgram is None. The loss name should be set if CompiledProgram contains backward part."
 
-        if self._places is not None:
-            if not isinstance(self._places, (list, tuple)):
-                self._places = [self._places]
+        if self._places is not None and not isinstance(
+            self._places, (list, tuple)
+        ):
+            self._places = [self._places]
 
         return self
 
@@ -338,8 +335,12 @@ class CompiledProgram(object):
             assert scope is not None, ""
             self._local_scopes = []
 
-        assert isinstance(places, tuple) or isinstance(places, list), \
-            "Currently , The places type can only be list or tuple, but the input type is {}.".format(type(places))
+        assert isinstance(
+            places, (tuple, list)
+        ), "Currently , The places type can only be list or tuple, but the input type is {}.".format(
+            type(places)
+        )
+
 
         if self._build_strategy is None:
             self._build_strategy = BuildStrategy()

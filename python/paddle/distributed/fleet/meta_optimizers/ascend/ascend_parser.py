@@ -79,8 +79,7 @@ class AscendParserFactory(object):
 
     def create_parse(self, parser_class):
         try:
-            parser = globals()[parser_class](self.graph, self.var2geop)
-            return parser
+            return globals()[parser_class](self.graph, self.var2geop)
         except:
             raise ValueError("parser class %s does not exist" % parser_class)
 
@@ -431,11 +430,11 @@ class FillConstantParser(AscendParserBase):
             assign = core.GEOperatorFactory.create_operator(
                 "assign" + self._accumulated_op_id(), "Assign").set_input(
                     "value", const).set_input("ref", var)
-            return [const], [[0]]
         else:
             print(
                 "self.op.output('Out')[0] is not persistable in fill_constant")
-            return [const], [[0]]
+
+        return [const], [[0]]
 
 
 class SGDParser(AscendParserBase):

@@ -110,7 +110,7 @@ def draw_graph(startup_program, main_program, **kwargs):
 
     graph_id = unique_id()
     filename = kwargs.get("filename")
-    if filename == None:
+    if filename is None:
         filename = str(graph_id) + ".gv"
     g = Graph(
         name=str(graph_id),

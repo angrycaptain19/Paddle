@@ -139,11 +139,7 @@ class AscendOptimizer(Optimizer):
         dist_strategy.ascend_configs = {}
 
     def _get_input_varlist(program):
-        ret_list = []
-        for var in program.list_vars():
-            if var.is_data or var.persistable:
-                ret_list.append(var)
-        return ret_list
+        return [var for var in program.list_vars() if var.is_data or var.persistable]
 
     def minimize(self,
                  loss,

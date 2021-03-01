@@ -37,11 +37,8 @@ is_strict_auto = wrap_decorator(__non_auto_func_called__)
 
 
 def get_msg_dict(msg):
-    res_dict = {}
     fields = msg.DESCRIPTOR.fields
-    for f in fields:
-        res_dict[f.name] = getattr(msg, f.name)
-    return res_dict
+    return {f.name: getattr(msg, f.name) for f in fields}
 
 
 def assign_configs_value(msg, config):
@@ -54,7 +51,7 @@ def assign_configs_value(msg, config):
                 # LABEL_REQUIRED = 2
                 if f.label == 3:
                     getattr(msg, f.name).extend(config[f.name])
-                elif f.label == 1 or f.label == 2:
+                elif f.label in [1, 2]:
                     setattr(msg, f.name, config[f.name])
 
 
@@ -247,7 +244,7 @@ class DistributedStrategy(object):
     def build_strategy(self, strategy):
         fields = self.strategy.build_strategy.DESCRIPTOR.fields
         for f in fields:
-            if f.label == 1 or f.label == 2:  # optional and required field
+            if f.label in [1, 2]:  # optional and required field
                 setattr(self.strategy.build_strategy, f.name,
                         getattr(strategy, f.name))
             elif f.label == 3:  # repeated field
@@ -281,13 +278,13 @@ class DistributedStrategy(object):
     @a_sync.setter
     @is_strict_auto
     def a_sync(self, flag):
-        if isinstance(flag, bool):
-            self.strategy.a_sync = flag
-            self.a_sync_configs = {"k_steps": 0}
-        else:
+        if not isinstance(flag, bool):
             raise ValueError(
                 "The type of `flag` is invalid, expected type is bool, but received %s".
                 format(type(flag)))
+
+        self.strategy.a_sync = flag
+        self.a_sync_configs = {"k_steps": 0}
 
     @property
     def a_sync_configs(self):
@@ -1399,9 +1396,7 @@ class DistributedStrategy(object):
 
     def _is_strict_auto(self):
         global non_auto_func_called
-        if self.strategy.auto and non_auto_func_called:
-            return True
-        return False
+        return bool(self.strategy.auto and non_auto_func_called)
 
     def __repr__(self):
         spacing = 2

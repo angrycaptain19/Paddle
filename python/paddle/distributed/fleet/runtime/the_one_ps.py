@@ -71,24 +71,31 @@ class CommonAccessor:
         self.define_optimize_map()
 
     def define_optimize_map(self):
-        opt_input_map = {}
-        opt_input_map["sgd"] = [("Param", None), ("LearningRate", 1)]
-        opt_input_map["adam"] = [("Param", None), ("Moment1", None),
-                                 ("Moment2", None), ("Beta1Pow", 1),
-                                 ("Beta2Pow", 1), ("LearningRate", 1)]
-        opt_input_map["sum"] = [("Param", None)]
+        opt_input_map = {
+            "sgd": [("Param", None), ("LearningRate", 1)],
+            "adam": [
+                ("Param", None),
+                ("Moment1", None),
+                ("Moment2", None),
+                ("Beta1Pow", 1),
+                ("Beta2Pow", 1),
+                ("LearningRate", 1),
+            ],
+            "sum": [("Param", None)],
+        }
 
-        opt_attr_map = {}
-        opt_attr_map["sgd"] = []
-        opt_attr_map["sum"] = []
-        opt_attr_map["adam"] = [("beta1", "f"), ("beta2", "f"),
-                                ("epsilon", "f")]
+        opt_attr_map = {
+            "sgd": [],
+            "sum": [],
+            "adam": [("beta1", "f"), ("beta2", "f"), ("epsilon", "f")],
+        }
 
-        opt_init_map = {}
-        opt_init_map["gaussian_random"] = ["seed", "mean", "std"]
-        opt_init_map["fill_constant"] = ["value"]
-        opt_init_map["uniform_random"] = ["seed", "min", "max"]
-        opt_init_map["truncated_gaussian_random"] = ["seed", "mean", "std"]
+        opt_init_map = {
+            "gaussian_random": ["seed", "mean", "std"],
+            "fill_constant": ["value"],
+            "uniform_random": ["seed", "min", "max"],
+            "truncated_gaussian_random": ["seed", "mean", "std"],
+        }
 
         self.opt_attr_map = opt_attr_map
         self.opt_input_map = opt_input_map
@@ -439,10 +446,9 @@ class TheOnePSRuntime(RuntimeBase):
     def build_compiled_startegy(self):
         from paddle.fluid.incubate.fleet.parameter_server.ir.public import CompileTimeStrategy
 
-        compiled_config = CompileTimeStrategy(
+        return CompileTimeStrategy(
             self.origin_main_program, self.origin_main_program,
             self.async_strategy, self.role_maker)
-        return compiled_config
 
     def _init_worker(self):
         from paddle.fluid.incubate.fleet.parameter_server.distribute_transpiler.distributed_strategy import \
@@ -453,9 +459,7 @@ class TheOnePSRuntime(RuntimeBase):
         server = self._get_fleet_proto(is_server=True, is_sync=is_sync)
 
         def sync_strategy_envs():
-            kwargs = {}
-            kwargs[
-                "pserver_endpoints"] = self.role_maker._get_pserver_endpoints()
+            kwargs = {"pserver_endpoints": self.role_maker._get_pserver_endpoints()}
             kwargs["trainer_id"] = self.role_maker._worker_index()
             return kwargs
 
@@ -713,11 +717,7 @@ class TheOnePSRuntime(RuntimeBase):
                     common.parse_entry(common.table_name,
                                        self.origin_main_program)
 
-                if is_sync:
-                    common.sync = "true"
-                else:
-                    common.sync = "false"
-
+                common.sync = "true" if is_sync else "false"
                 table.common = common
 
                 accessor = _build_merge_accessor(ctx)
@@ -801,10 +801,11 @@ class TheOnePSRuntime(RuntimeBase):
         if dirname is None or not load_varnames:
             return
 
-        sparse_table_maps = {}
-        for table in server.servers[0].tables:
-            if table.type == "PS_SPARSE_TABLE" and table.common is not None:
-                sparse_table_maps[table.common.table_name] = table.id
+        sparse_table_maps = {
+            table.common.table_name: table.id
+            for table in server.servers[0].tables
+            if table.type == "PS_SPARSE_TABLE" and table.common is not None
+        }
 
         dirname = os.path.normpath(dirname)
         pserver_id = self.role_maker._role_id()
@@ -863,9 +864,11 @@ class TheOnePSRuntime(RuntimeBase):
             if origin_varname == "learning_rate_0":
                 return False
 
-            if var.desc.type() == core.VarDesc.VarType.FEED_MINIBATCH or \
-                    var.desc.type() == core.VarDesc.VarType.FETCH_LIST or \
-                    var.desc.type() == core.VarDesc.VarType.READER:
+            if var.desc.type() in [
+                core.VarDesc.VarType.FEED_MINIBATCH,
+                core.VarDesc.VarType.FETCH_LIST,
+                core.VarDesc.VarType.READER,
+            ]:
                 return False
             return var.persistable
 

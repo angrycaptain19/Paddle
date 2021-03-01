@@ -65,10 +65,9 @@ class ParameterServerRuntime(RuntimeBase):
     def build_compiled_startegy(self):
         from paddle.fluid.incubate.fleet.parameter_server.ir.public import CompileTimeStrategy
 
-        compiled_config = CompileTimeStrategy(
+        return CompileTimeStrategy(
             self.origin_main_program, self.origin_main_program,
             self.async_strategy, self.role_maker)
-        return compiled_config
 
     def _load_sparse_params(self,
                             executor,
@@ -140,9 +139,11 @@ class ParameterServerRuntime(RuntimeBase):
             if origin_varname == "learning_rate_0":
                 return False
 
-            if var.desc.type() == core.VarDesc.VarType.FEED_MINIBATCH or \
-                    var.desc.type() == core.VarDesc.VarType.FETCH_LIST or \
-                    var.desc.type() == core.VarDesc.VarType.READER:
+            if var.desc.type() in [
+                core.VarDesc.VarType.FEED_MINIBATCH,
+                core.VarDesc.VarType.FETCH_LIST,
+                core.VarDesc.VarType.READER,
+            ]:
                 return False
             return var.persistable
 
@@ -150,9 +151,7 @@ class ParameterServerRuntime(RuntimeBase):
 
     def _init_worker(self):
         def sync_strategy_envs():
-            kwargs = {}
-            kwargs[
-                "pserver_endpoints"] = self.role_maker._get_pserver_endpoints()
+            kwargs = {"pserver_endpoints": self.role_maker._get_pserver_endpoints()}
             kwargs["trainer_id"] = self.role_maker._worker_index()
             return kwargs
 
@@ -160,12 +159,12 @@ class ParameterServerRuntime(RuntimeBase):
             from paddle.fluid.incubate.fleet.parameter_server.ir.public import get_sparse_tablenames
 
             def get_sparse_attrs():
-                opt_init_map = {}
-                opt_init_map["gaussian_random"] = ["seed", "mean", "std"]
-                opt_init_map["fill_constant"] = ["value"]
-                opt_init_map["uniform_random"] = ["seed", "min", "max"]
-                opt_init_map[
-                    "truncated_gaussian_random"] = ["seed", "mean", "std"]
+                opt_init_map = {
+                    "gaussian_random": ["seed", "mean", "std"],
+                    "fill_constant": ["value"],
+                    "uniform_random": ["seed", "min", "max"],
+                    "truncated_gaussian_random": ["seed", "mean", "std"],
+                }
 
                 dist_varnames = get_sparse_tablenames(self.origin_main_program,
                                                       True)
@@ -181,13 +180,9 @@ class ParameterServerRuntime(RuntimeBase):
                 for value_name in sparse_varnames:
                     value_var = self.origin_main_program.global_block().vars[
                         value_name]
-                    value_attr = [
-                        value_name,
-                        ",".join([str(dim) for dim in value_var.shape])
-                    ]
+                    value_attr = [value_name, ",".join(str(dim) for dim in value_var.shape)]
                     for op in self.origin_startup_program.global_block().ops:
-                        if op.type in opt_init_map.keys(
-                        ) and value_name == op.output("Out")[0]:
+                        if op.type in opt_init_map and value_name == op.output("Out")[0]:
                             init_attr = [op.type]
                             for attr in opt_init_map[op.type]:
                                 init_attr.append(str(op.attr(attr)))
@@ -359,21 +354,22 @@ class ParameterServerRuntime(RuntimeBase):
             "rmsprop", "decayed_adagrad", "ftrl"
         ]
 
-        reshaped_val_map = {}
-        reshaped_val_map["sgd"] = []
-        reshaped_val_map["adam"] = ["moment1_0", "moment2_0"]
-        reshaped_val_map["adagrad"] = ["moment_0"]
-        reshaped_val_map["adamax"] = ["moment_0", "inf_norm_0"]
-        reshaped_val_map["momentum"] = ["velocity_0"]
-        reshaped_val_map["lars_momentum"] = ["velocity_0"]
-        reshaped_val_map[
-            "rmsprop"] = ["momentum_0", "mean_square_0", "mean_grad_0"]
-        reshaped_val_map["decayed_adagrad"] = ["moment_0"]
-        reshaped_val_map["ftrl"] = ["squared_0", "linear_0"]
+        reshaped_val_map = {
+            "sgd": [],
+            "adam": ["moment1_0", "moment2_0"],
+            "adagrad": ["moment_0"],
+            "adamax": ["moment_0", "inf_norm_0"],
+            "momentum": ["velocity_0"],
+            "lars_momentum": ["velocity_0"],
+            "rmsprop": ["momentum_0", "mean_square_0", "mean_grad_0"],
+            "decayed_adagrad": ["moment_0"],
+            "ftrl": ["squared_0", "linear_0"],
+        }
 
-        orishaped_val_map = {}
-        orishaped_val_map["adam"] = ["beta1_pow_acc_0", "beta2_pow_acc_0"]
-        orishaped_val_map["adamax"] = ["beta1_pow_acc_0"]
+        orishaped_val_map = {
+            "adam": ["beta1_pow_acc_0", "beta2_pow_acc_0"],
+            "adamax": ["beta1_pow_acc_0"],
+        }
 
         if op not in supported_opts:
             raise ValueError(
@@ -426,14 +422,15 @@ class ParameterServerRuntime(RuntimeBase):
                     attrs={
                         "trainer_id": self.role_maker._worker_index(),
                         "shape": var.shape,
-                        "slice_shapes":
-                        [",".join([str(i) for i in var.shape])],
+                        "slice_shapes": [",".join(str(i) for i in var.shape)],
                         "slice_varnames": [var.name],
                         "remote_varnames": [var.name],
                         "is_sparse": False,
                         "endpoints": var_ctx.split_endpoints(),
-                        "file_path": os.path.join(dirname, var.name)
-                    })
+                        "file_path": os.path.join(dirname, var.name),
+                    },
+                )
+
 
         executor.run(prog)
         return local_vars
@@ -455,12 +452,9 @@ class ParameterServerRuntime(RuntimeBase):
                 optimizer.type, varname)
 
             var = self.origin_main_program.global_block().vars[varname]
-            slice_shapes = []
-            dims1 = ",".join([str(i) for i in var.shape[1:]])
+            dims1 = ",".join(str(i) for i in var.shape[1:])
 
-            for section in var_ctx.sections():
-                slice_shapes.append(str(section) + dims1)
-
+            slice_shapes = [str(section) + dims1 for section in var_ctx.sections()]
             block.append_op(
                 type='recv_save',
                 attrs={
@@ -511,14 +505,15 @@ class ParameterServerRuntime(RuntimeBase):
                     attrs={
                         "trainer_id": self.role_maker._worker_index(),
                         "shape": var.shape,
-                        "slice_shapes":
-                        [",".join([str(i) for i in var.shape])],
+                        "slice_shapes": [",".join(str(i) for i in var.shape)],
                         "slice_varnames": [origin_varname],
                         "remote_varnames": [origin_varname],
                         "is_sparse": False,
                         "endpoints": var_ctx.split_endpoints()[:1],
-                        "file_path": os.path.join(dirname, var.name)
-                    })
+                        "file_path": os.path.join(dirname, var.name),
+                    },
+                )
+
         executor.run(prog)
         return context.keys()
 
