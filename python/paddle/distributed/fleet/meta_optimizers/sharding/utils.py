@@ -54,12 +54,6 @@ def check_broadcast(block):
     last_sync_comm_op_idx = -1
     last_sync_calc_op_idx = -1
     for idx, op in enumerate(block.ops):
-        if op.type == "c_sync_comm_stream":
-            last_sync_comm_op_idx = idx
-            continue
-        if op.type == "c_sync_calc_stream":
-            last_sync_calc_op_idx = idx
-            continue
         if op.type == "c_broadcast":
             var_name = op.desc.input_arg_names()[0]
             if "@BroadCast" in var_name:
@@ -69,6 +63,12 @@ def check_broadcast(block):
                             last_sync_calc_op_idx)
                     assert (last_sync_calc_op_idx < idx)
                 continue
+        elif op.type == "c_sync_calc_stream":
+            last_sync_calc_op_idx = idx
+            continue
+        elif op.type == "c_sync_comm_stream":
+            last_sync_comm_op_idx = idx
+            continue
         for input_name in op.desc.input_arg_names():
             if input_name in broadcast_vars:
                 assert (broadcast_vars[input_name]["broadcast_pos"] != -1)
@@ -96,7 +96,10 @@ def check_allreduce_sum(block, shard, dp_ring_id=-1):
     idx_amp_allreduce = -1
     idx_gradient_clip_allreduce = -1
     for idx, op in enumerate(block.ops):
-        if op.type == "c_allreduce_sum":
+        if op.type == "c_allreduce_max":
+            idx_gradient_clip_allreduce = idx
+
+        elif op.type == "c_allreduce_sum":
             ring_id = op.desc.attr("ring_id")
             var_name = op.desc.input_arg_names()[0]
             param = var_name.split("@")[0]
@@ -113,11 +116,8 @@ def check_allreduce_sum(block, shard, dp_ring_id=-1):
 
             if "sum" in var_name:
                 idx_amp_allreduce = idx
-            elif "@GRAD":
+            else:
                 idx_last_grad_allreduce = idx
-
-        if op.type == "c_allreduce_max":
-            idx_gradient_clip_allreduce = idx
 
     for op in block.ops:
         if op.type == "c_sync_calc_stream":
@@ -133,14 +133,11 @@ def check_allreduce_sum(block, shard, dp_ring_id=-1):
             var_name = op.desc.input_arg_names()[0]
             ring_id = op.desc.attr("ring_id")
             if ring_id == 0:
-                if var_name in vars_status:
-                    _status = vars_status[var_name]
-                else:
-                    _status = dp_grads_status[var_name]
+                _status = vars_status.get(var_name, dp_grads_status[var_name])
                 if _status == -1:
                     raise ValueError("{} is not generated, but you are"
                                      "trying to all-reduce it".format(var_name))
-                if _status == 0:
+                elif _status == 0:
                     raise ValueError("There should be a sync_calc op "
                                      "after generate Var: {} and before the"
                                      "c_allreduce_sum op".format(var_name))
@@ -176,11 +173,10 @@ def check_allreduce_sum(block, shard, dp_ring_id=-1):
                     dp_grads_status[var_name] = 5
         else:
             for input_name in op.desc.input_arg_names():
-                if input_name in vars_status:
-                    if vars_status[input_name] != 3:
-                        raise ValueError("There should be a sync_comm op "
-                                         "after allreduce the Var: {}".format(
-                                             input_name))
+                if input_name in vars_status and vars_status[input_name] != 3:
+                    raise ValueError("There should be a sync_comm op "
+                                     "after allreduce the Var: {}".format(
+                                         input_name))
                 if input_name in dp_grads_status:
                     if dp_ring_id == -1:
                         if dp_grads_status[input_name] != 3:
@@ -474,10 +470,7 @@ def save_persistables(exe, dirname, main_program, filename=None):
             "_moment1_0", "_moment2_0", "_beta1_pow_acc_0", "_beta2_pow_acc_0",
             "_velocity_0"
         ]
-        for check in checks:
-            if var.name.endswith(check):
-                return True
-        return False
+        return any(var.name.endswith(check) for check in checks)
 
     def is_trainable(var):
         return isinstance(var,

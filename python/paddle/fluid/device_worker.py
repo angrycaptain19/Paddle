@@ -95,7 +95,7 @@ class Hogwild(DeviceWorker):
 
         dense_table_set = set()
         program_id = str(id(self._program))
-        if self._program == None:
+        if self._program is None:
             print("program of current device worker is not configured")
             exit(-1)
         opt_info = self._program._fleet_opt
@@ -200,7 +200,7 @@ class DownpourSGD(DeviceWorker):
         """
         dense_table_set = set()
         program_id = str(id(self._program))
-        if self._program == None:
+        if self._program is None:
             print("program of current device worker is not configured")
             exit(-1)
         opt_info = self._program._fleet_opt
@@ -308,7 +308,7 @@ class DownpourSGDOPT(DeviceWorker):
         """
         dense_table_set = set()
         program_id = str(id(self._program))
-        if self._program == None:
+        if self._program is None:
             print("program of current device worker is not configured")
             exit(-1)
         opt_info = self._program._fleet_opt

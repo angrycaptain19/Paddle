@@ -74,10 +74,7 @@ class Cluster(object):
             if a != b:
                 return False
 
-        if self.job_stage_flag != cluster.job_stage_flag:
-            return False
-
-        return True
+        return self.job_stage_flag == cluster.job_stage_flag
 
     def __ne__(self, cluster):
         return not self.__eq__(cluster)
@@ -148,11 +145,7 @@ class Trainer(object):
                 self.rank != t.rank:
             return False
 
-        for a, b in zip(self.gpus, t.gpus):
-            if a != b:
-                return False
-
-        return True
+        return all(a == b for a, b in zip(self.gpus, t.gpus))
 
     def __ne__(self, t):
         return not self == t
@@ -232,10 +225,7 @@ class Pod(object):
         return self.rank
 
     def get_visible_gpus(self):
-        r = ""
-        for g in self.gpus:
-            r += "{},".format(g)
-
+        r = "".join("{},".format(g) for g in self.gpus)
         assert r != "", "this pod {} can't see any gpus".format(self)
 
         r = r[:-1]
@@ -277,10 +267,7 @@ def get_cluster(node_ips, node_ip, trainer_endpoints, device_mode,
                 else:
                     trainer.gpus.append(devices_per_proc[i])
             elif device_mode == DeviceMode.XPU:
-                if isinstance(devices_per_proc[i], (list, tuple)):
-                    trainer.gpus.extend(devices_per_proc[i])
-                else:
-                    trainer.gpus.extend(devices_per_proc[i])
+                trainer.gpus.extend(devices_per_proc[i])
             trainer.endpoint = "%s" % (cur_node_endpoints[i])
             trainer.rank = trainer_rank
             trainer_rank += 1
@@ -302,7 +289,7 @@ def terminate_local_procs(procs):
 
     # wait all process terminiated
     time.sleep(3)
-    for step in range(0, 50):
+    for _ in range(50):
         alive = False
         for p in procs:
             if p.proc.poll() is None:  # not termniate
@@ -418,8 +405,7 @@ def pretty_print_envs(envs, header=None):
 
     draws += border
 
-    _str = "\n{}\n".format(draws)
-    return _str
+    return "\n{}\n".format(draws)
 
 
 class TrainerProc(object):
@@ -439,11 +425,7 @@ def start_local_trainers(cluster,
                          log_dir=None,
                          envs=None):
 
-    if envs is None:
-        current_env = copy.copy(os.environ.copy())
-    else:
-        current_env = copy.copy(envs)
-
+    current_env = copy.copy(os.environ.copy()) if envs is None else copy.copy(envs)
     # paddle broadcast ncclUniqueId use socket, and
     # proxy maybe make trainers unreachable, so delete them.
     # if we set them to "", grpc will log error message "bad uri"
@@ -464,8 +446,7 @@ def start_local_trainers(cluster,
             proc_env["FLAGS_selected_gpus"] = "%s" % ",".join(
                 [str(g) for g in t.gpus])
         elif fluid.core.is_compiled_with_xpu() and len(t.gpus) > 0:
-            proc_env["FLAGS_selected_xpus"] = "%s" % ",".join(
-                [str(g) for g in t.gpus])
+            proc_env["FLAGS_selected_xpus"] = ("%s" % ",".join(str(g) for g in t.gpus))
 
         current_env.update(proc_env)
 
@@ -567,7 +548,7 @@ def watch_local_trainers(procs, nranks):
 def get_gpus(gpus):
     if gpus is None:
         gpus_num = fluid.core.get_cuda_device_count()
-        res_gpus = [str(x) for x in range(0, gpus_num)]
+        res_gpus = [str(x) for x in range(gpus_num)]
     else:
         cuda_visible_devices = os.getenv("CUDA_VISIBLE_DEVICES")
         if cuda_visible_devices is None or cuda_visible_devices == "":
@@ -596,7 +577,7 @@ def get_gpus(gpus):
 def get_xpus(xpus):
     if xpus is None:
         xpus_num = fluid.core.get_xpu_device_count()
-        res_xpus = [str(x) for x in range(0, xpus_num)]
+        res_xpus = [str(x) for x in range(xpus_num)]
     else:
         xpu_visible_devices = os.getenv("XPU_VISIBLE_DEVICES")
         if xpu_visible_devices is None or xpu_visible_devices == "":
@@ -670,7 +651,7 @@ def get_device_proc_info(args):
         if args.nproc_per_node is None:
             devices_per_proc = [0]
         else:
-            devices_per_proc = [x for x in range(0, args.nproc_per_node)]
+            devices_per_proc = [x for x in range(args.nproc_per_node)]
     else:
         assert False, "Can't support device_mode:{}, support only cpu|gpu|xpu now.".format(
             device_mode)
@@ -699,8 +680,7 @@ def get_custom_endpoints(origin_endpoints, offset=0):
         port = ip_port.split(":")[1]
         new_port = int(port) + offset
         paddle_user_define_endpoints_list.append(":".join((ip, str(new_port))))
-    paddle_user_define_endpoints = ",".join(paddle_user_define_endpoints_list)
-    return paddle_user_define_endpoints
+    return ",".join(paddle_user_define_endpoints_list)
 
 
 def cloud_ps_heter_env_set(args):

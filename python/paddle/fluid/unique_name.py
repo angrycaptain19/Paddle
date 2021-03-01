@@ -71,9 +71,8 @@ class DygraphParameterNameChecker(object):
         '''
         if name in self._name_set:
             return True
-        else:
-            self._name_set.add(name)
-            return False
+        self._name_set.add(name)
+        return False
 
 
 dygraph_parameter_name_checker = DygraphParameterNameChecker()
@@ -171,11 +170,7 @@ def switch(new_generator=None, new_para_name_checker=None):
     old_generator = generator
     global dygraph_parameter_name_checker
     old_para_name_checker = dygraph_parameter_name_checker
-    if new_generator is None:
-        generator = UniqueNameGenerator()
-    else:
-        generator = new_generator
-
+    generator = UniqueNameGenerator() if new_generator is None else new_generator
     if new_para_name_checker is None:
         dygraph_parameter_name_checker = DygraphParameterNameChecker()
     else:

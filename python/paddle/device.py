@@ -90,15 +90,15 @@ def get_cudnn_version():
     global _cudnn_version
     if not core.is_compiled_with_cuda():
         return None
-    if _cudnn_version is None:
-        cudnn_version = int(core.cudnn_version())
-        _cudnn_version = cudnn_version
-        if _cudnn_version < 0:
-            return None
-        else:
-            return cudnn_version
-    else:
+    if _cudnn_version is not None:
         return _cudnn_version
+
+    cudnn_version = int(core.cudnn_version())
+    _cudnn_version = cudnn_version
+    if _cudnn_version < 0:
+        return None
+    else:
+        return cudnn_version
 
 
 def set_device(device):

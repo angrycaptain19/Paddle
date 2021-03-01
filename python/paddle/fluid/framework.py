@@ -352,19 +352,17 @@ def _cpu_num():
 def _cuda_ids():
     gpus_env = os.getenv("FLAGS_selected_gpus")
     if gpus_env:
-        device_ids = [int(s) for s in gpus_env.split(",")]
+        return [int(s) for s in gpus_env.split(",")]
     else:
-        device_ids = six.moves.range(core.get_cuda_device_count())
-    return device_ids
+        return six.moves.range(core.get_cuda_device_count())
 
 
 def _xpu_ids():
     xpus_env = os.getenv("FLAGS_selected_xpus")
     if xpus_env:
-        device_ids = [int(s) for s in xpus_env.split(",")]
+        return [int(s) for s in xpus_env.split(",")]
     else:
-        device_ids = six.moves.range(core.get_xpu_device_count())
-    return device_ids
+        return six.moves.range(core.get_xpu_device_count())
 
 
 def is_compiled_with_xpu():
@@ -549,7 +547,7 @@ def cuda_pinned_places(device_count=None):
 
 class NameScope(object):
     def __init__(self, name="", parent=None):
-        self._children = dict()
+        self._children = {}
         self._name = name
         self._parent = parent
 
@@ -733,7 +731,7 @@ def _debug_string_(proto, throw_on_error=True):
     Returns(str): The debug string of the protobuf message
 
     """
-    error_fields = list()
+    error_fields = []
     if not proto.IsInitialized(error_fields) and throw_on_error:
         raise ValueError("{0} are not initialized.\nThe message is {1}:\n".
                          format(error_fields, proto))
@@ -746,14 +744,16 @@ def _varbase_creator(type=core.VarDesc.VarType.LOD_TENSOR,
                      dtype=None,
                      persistable=None,
                      **kwargs):
-    if dtype is not None:
-        if not isinstance(dtype, core.VarDesc.VarType):
-            dtype = convert_np_dtype_to_dtype_(dtype)
+    if dtype is not None and not isinstance(dtype, core.VarDesc.VarType):
+        dtype = convert_np_dtype_to_dtype_(dtype)
 
-    return core.VarBase(dtype if dtype else core.VarDesc.VarType.FP32,
-                        list(shape) if shape else [], name, type
-                        if type else core.VarDesc.VarType.LOD_TENSOR, True
-                        if persistable else False)
+    return core.VarBase(
+        dtype or core.VarDesc.VarType.FP32,
+        list(shape) if shape else [],
+        name,
+        type or core.VarDesc.VarType.LOD_TENSOR,
+        bool(persistable),
+    )
 
 
 class VariableMetaClass(type):
@@ -864,10 +864,7 @@ def _getitem_impl_(var, item):
                                  if slice_item != -1 else 10000000)
 
     def contain_var(one_list):
-        for ele in one_list:
-            if isinstance(ele, Variable):
-                return True
-        return False
+        return any(isinstance(ele, Variable) for ele in one_list)
 
     def get_new_list_tensor(old_list):
         new_list_tensor = []
@@ -1366,7 +1363,10 @@ class Variable(object):
         """
         # VarType.LOD_TENSOR -> LOD_TENSOR
         type_str = str(self.type).split('.')[1]
-        if self.type == core.VarDesc.VarType.SELECTED_ROWS or self.type == core.VarDesc.VarType.LOD_TENSOR:
+        if self.type in [
+            core.VarDesc.VarType.SELECTED_ROWS,
+            core.VarDesc.VarType.LOD_TENSOR,
+        ]:
             dtype_str = str(self.dtype).split('.')[1]
             var_str = "{name} : {type}.shape{shape}.dtype({dtype}).stop_gradient({stop_gradient})".\
                 format(name=self.name, type=type_str, shape=self.shape,
@@ -1759,10 +1759,8 @@ class Variable(object):
     def _reconstructSliceinfo(self, item):
         has_ellipsis, start, end = self._detectEllipsis(item)
         if has_ellipsis:
-            newitem = []
-            for i in range(start):
-                newitem.append(item[i])
-            for i in range(start, end):
+            newitem = [item[i] for i in range(start)]
+            for _ in range(start, end):
                 newitem.append(slice(None, None, None))
             for i in range(end, len(item)):
                 newitem.append(item[i])
@@ -1785,7 +1783,7 @@ class Variable(object):
                 ends.append(start + 1)
             elif isinstance(o, slice):
                 start, stop, step = self._slice_indices(o, self.shape[index])
-                if step == 1 or step == -1:
+                if step in [1, -1]:
                     starts.append(start)
                     ends.append(stop)
                 else:
@@ -1829,19 +1827,18 @@ class Variable(object):
             start, stop, step = self._slice_indices(item, self.shape[axis])
             if step == 1:
                 return self._sliceVar([axis], [start], [stop])
+            vars = []
+            if step > 0:
+                while start < stop:
+                    vars.append(
+                        self._sliceVar([axis], [start], [start + 1]))
+                    start += step
             else:
-                vars = []
-                if step > 0:
-                    while start < stop:
-                        vars.append(
-                            self._sliceVar([axis], [start], [start + 1]))
-                        start += step
-                else:
-                    while start > stop:
-                        vars.append(
-                            self._sliceVar([axis], [start], [start + 1]))
-                        start += step
-                return self._concatVar(vars, axis)
+                while start > stop:
+                    vars.append(
+                        self._sliceVar([axis], [start], [start + 1]))
+                    start += step
+            return self._concatVar(vars, axis)
         elif isinstance(item, int):
             if self.shape[axis] < 0:
                 return self._cloneVar(True)
@@ -2201,10 +2198,10 @@ class Operator(object):
                             "used at the same time." % type)
 
             def find_name(var_list, name):
-                for var_name in var_list:
-                    if var_list[var_name] is not None and var_name == name:
-                        return True
-                return False
+                return any(
+                    var_list[var_name] is not None and var_name == name
+                    for var_name in var_list
+                )
 
             if inputs is not None:
                 for in_proto in proto.inputs:
@@ -2340,7 +2337,7 @@ class Operator(object):
         ), "skip_op_callstack parameter's type is error, expect bool, received %s".format(
             type(skip_op_callstack))
         outputs_str = "{"
-        for i in range(0, len(self.output_names)):
+        for i in range(len(self.output_names)):
             outputs_str += "{name}=".format(name=self.output_names[i])
             o = self.output(self.output_names[i])
             outputs_str += "{value}".format(value=o)
@@ -2349,7 +2346,7 @@ class Operator(object):
         outputs_str += "}"
 
         inputs_str = "{"
-        for i in range(0, len(self.input_names)):
+        for i in range(len(self.input_names)):
             inputs_str += "{name}=".format(name=self.input_names[i])
             o = self.input(self.input_names[i])
             inputs_str += "{value}".format(value=o)
@@ -2360,7 +2357,7 @@ class Operator(object):
 
         attr_names = sorted(self.attr_names)
         attrs_str = ""
-        for i in range(0, len(attr_names)):
+        for i in range(len(attr_names)):
             name = attr_names[i]
             if skip_op_callstack and name == "op_callstack":
                 continue
@@ -2391,13 +2388,12 @@ class Operator(object):
                 attrs_str += ", "
 
         if outputs_str != "{}":
-            op_str = "{outputs} = {op_type}(inputs={inputs}, {attrs})".\
+            return "{outputs} = {op_type}(inputs={inputs}, {attrs})".\
                 format(outputs=outputs_str, op_type=self.type,
                        inputs=inputs_str, attrs=attrs_str)
         else:
-            op_str = "{op_type}(inputs={inputs}, {attrs})".\
+            return "{op_type}(inputs={inputs}, {attrs})".\
                 format(op_type=self.type, inputs=inputs_str, attrs=attrs_str)
-        return op_str
 
     def __str__(self):
         return self._to_readable_code()
@@ -2541,8 +2537,7 @@ class Operator(object):
         elif isinstance(val, list) and val and all(
                 isinstance(v, Block) for v in val):
             self.desc.set_blocks_attr(name, [v.desc for v in val])
-        elif isinstance(val, core.BlockDesc) or \
-                isinstance(val, core.ProgramDesc):
+        elif isinstance(val, (core.BlockDesc, core.ProgramDesc)):
             self.desc.set_serialized_attr(name, val.serialize_to_string())
         else:
             self.desc._set_attr(name, val)
@@ -2652,10 +2647,7 @@ class Operator(object):
             return False
 
         op_role = self.desc.attr(op_maker.kOpRoleAttrName())
-        if op_role & int(OPTIMIZE):
-            return True
-
-        return False
+        return bool(op_role & int(OPTIMIZE))
 
     def _is_backward_op(self):
         op_maker = core.op_proto_and_checker_maker
@@ -2665,10 +2657,7 @@ class Operator(object):
             return False
 
         op_role = self.desc.attr(op_maker.kOpRoleAttrName())
-        if op_role & int(BACKWARD):
-            return True
-
-        return False
+        return bool(op_role & int(BACKWARD))
 
 
 class Block(object):
@@ -2859,7 +2848,7 @@ class Block(object):
         Returns:
             Variable: the Variable with the giving name. Or None if not found.
         """
-        frontier = list()
+        frontier = []
         visited = set()
 
         frontier.append(self)
@@ -3072,11 +3061,14 @@ class Block(object):
             # TODO(minqiyang): add op stop_gradient support in static mode too.
             # currently, we only support stop_gradient in dygraph mode.
 
-            _dygraph_tracer().trace_op(type,
-                                       kwargs.get("inputs", {}),
-                                       kwargs.get("outputs", {}), attrs
-                                       if attrs else {},
-                                       kwargs.get("stop_gradient", False))
+            _dygraph_tracer().trace_op(
+                type,
+                kwargs.get("inputs", {}),
+                kwargs.get("outputs", {}),
+                attrs or {},
+                kwargs.get("stop_gradient", False),
+            )
+
         else:
             op_desc = self.desc.append_op()
             op = Operator(
@@ -3158,11 +3150,14 @@ class Block(object):
             op = Operator(
                 self, None, type=type, inputs=None, outputs=None, attrs=attrs)
 
-            _dygraph_tracer().trace_op(type,
-                                       kwargs.get("inputs", {}),
-                                       kwargs.get("outputs", {}), attrs
-                                       if attrs else {},
-                                       kwargs.get("stop_gradient", False))
+            _dygraph_tracer().trace_op(
+                type,
+                kwargs.get("inputs", {}),
+                kwargs.get("outputs", {}),
+                attrs or {},
+                kwargs.get("stop_gradient", False),
+            )
+
         else:
             op_desc = self.desc._prepend_op()
             op = Operator(
@@ -3192,10 +3187,7 @@ class Block(object):
                 self.vars.pop(var)
 
         # sync operators from cpp
-        ops_in_cpp = []
-        for op_idx in range(0, self.desc.op_size()):
-            ops_in_cpp.append(self.desc.op(op_idx))
-
+        ops_in_cpp = [self.desc.op(op_idx) for op_idx in range(self.desc.op_size())]
         if len(self.ops) != 0:
             first_op_in_python = self.ops[0].desc
             last_op_in_python = self.ops[len(self.ops) - 1].desc
@@ -3311,14 +3303,14 @@ class Block(object):
         assert isinstance(var, Variable)
         ret_var = None
         # make STEP_SCOPES var can be safely cloned.
-        if var.type == core.VarDesc.VarType.STEP_SCOPES:
-            ret_var = self.create_var(
-                name=var.name, persistable=var.persistable, type=var.type)
-        elif var.type == core.VarDesc.VarType.RAW:
-            ret_var = self.create_var(
+        if var.type in [
+            core.VarDesc.VarType.STEP_SCOPES,
+            core.VarDesc.VarType.RAW,
+        ]:
+            return self.create_var(
                 name=var.name, persistable=var.persistable, type=var.type)
         elif var.type == core.VarDesc.VarType.SELECTED_ROWS:
-            ret_var = self.create_var(
+            return self.create_var(
                 name=var.name,
                 shape=var.shape,
                 dtype=var.dtype,
@@ -3327,7 +3319,7 @@ class Block(object):
                 is_data=var.is_data,
                 need_check_feed=var.desc.need_check_feed())
         else:
-            ret_var = self.create_var(
+            return self.create_var(
                 name=var.name,
                 shape=var.shape,
                 dtype=var.dtype,
@@ -3336,7 +3328,6 @@ class Block(object):
                 persistable=True if force_persistable else var.persistable,
                 is_data=var.is_data,
                 need_check_feed=var.desc.need_check_feed())
-        return ret_var
 
 
 class IrNode(object):
@@ -3711,8 +3702,7 @@ class IrOpNode(IrNode):
         elif isinstance(val, list) and val and \
                 all(isinstance(v, Block) for v in val):
             desc.set_blocks_attr(name, [v.desc for v in val])
-        elif isinstance(val, core.BlockDesc) or \
-                isinstance(val, core.ProgramDesc):
+        elif isinstance(val, (core.BlockDesc, core.ProgramDesc)):
             desc.set_serialized_attr(name, val.serialize_to_string())
         else:
             desc._set_attr(name, val)
@@ -3816,11 +3806,14 @@ class IrGraph(object):
         """
         Return all persistable variable nodes included in the graph as a set.
         """
-        persistable_nodes = set()
-        for node in self.graph.nodes():
-            if node.is_var() and node.var() is not None and node.var(
-            ).persistable():
-                persistable_nodes.add(node)
+        persistable_nodes = {
+            node
+            for node in self.graph.nodes()
+            if node.is_var()
+            and node.var() is not None
+            and node.var().persistable()
+        }
+
         return {IrVarNode(p) for p in persistable_nodes}
 
     def all_op_nodes(self):
@@ -3998,7 +3991,7 @@ class IrGraph(object):
 
     def resolve_hazard(self):
         ordered_nodes = core.topology_sort(self.graph)
-        var_nodes = dict()
+        var_nodes = {}
         for node in ordered_nodes:
             if node.is_op() and node.op() is not None:
                 for each_var_name in node.op().input_arg_names():
@@ -4055,10 +4048,7 @@ class IrGraph(object):
             dict{IrNode: set(IrNode)}: the adjacency list.
         """
         adj_list = core.build_adjacency_list(self.graph)
-        wrapped_adj_list = dict()
-        for k, v in six.iteritems(adj_list):
-            wrapped_adj_list[IrNode(k)] = {IrNode(n) for n in v}
-        return wrapped_adj_list
+        return {IrNode(k): {IrNode(n) for n in v} for k, v in six.iteritems(adj_list)}
 
     def draw(self, save_path, name, marked_nodes=None, remove_ctr_var=True):
         """
@@ -4127,8 +4117,7 @@ class IrGraph(object):
         desc = core.ProgramDesc()
         convert_pass.set_not_owned('program', desc)
         convert_pass.apply(self.graph)
-        program = Program._construct_from_desc(desc)
-        return program
+        return Program._construct_from_desc(desc)
 
     def _find_node_by_name(self, nodes, node_name):
         """
@@ -4150,8 +4139,7 @@ class IrGraph(object):
         elif isinstance(val, list) and val and all(
                 isinstance(v, Block) for v in val):
             desc.set_blocks_attr(name, [v.desc for v in val])
-        elif isinstance(val, core.BlockDesc) or \
-                isinstance(val, core.ProgramDesc):
+        elif isinstance(val, (core.BlockDesc, core.ProgramDesc)):
             desc.set_serialized_attr(name, val.serialize_to_string())
         else:
             desc._set_attr(name, val)
@@ -4495,15 +4483,15 @@ class Program(object):
             type(with_details))
 
         if with_details:
-            res_str = ""
-            for block in self.blocks:
-                res_str += block.to_string(throw_on_error, with_details)
-        else:
-            protostr = self.desc.serialize_to_string()
-            proto = framework_pb2.ProgramDesc.FromString(
-                six.binary_type(protostr))
-            res_str = _debug_string_(proto, throw_on_error)
-        return res_str
+            return "".join(
+                block.to_string(throw_on_error, with_details)
+                for block in self.blocks
+            )
+
+        protostr = self.desc.serialize_to_string()
+        proto = framework_pb2.ProgramDesc.FromString(
+            six.binary_type(protostr))
+        return _debug_string_(proto, throw_on_error)
 
     def _get_desc(self):
         """
@@ -4813,9 +4801,8 @@ class Program(object):
                         # since optimize op generates parameters.
                         if op._is_optimize_op() and op not in targets:
                             continue
-                        else:
-                            target_op = op
-                            break
+                        target_op = op
+                        break
                 if target_op is None:
                     raise ValueError(
                         "The target variable used for pruning should have an "
@@ -4864,10 +4851,10 @@ class Program(object):
         res = Program()
         res.desc = core.ProgramDesc(self.desc)
 
-        # remove all readers and the read_op if exist
-        read_op_idx = 0
         root_block = res.desc.block(0)
         if prune_read_op:
+            # remove all readers and the read_op if exist
+            read_op_idx = 0
             while True:
                 if read_op_idx >= root_block.op_size() or root_block.op(
                         read_op_idx).type() == 'read':
@@ -5263,8 +5250,7 @@ class Program(object):
                 # var label : paddle.VarType.LOD_TENSOR.shape(-1, 1).astype(VarType.INT64)
         """
         for each_block in self.blocks:
-            for each_var in list(each_block.vars.values()):
-                yield each_var
+            yield from list(each_block.vars.values())
 
     def all_parameters(self):
         """
@@ -5455,16 +5441,19 @@ class ParamBase(core.VarBase):
                     "Each dimension of shape for Parameter must be greater than 0, but received %s"
                     % list(shape))
 
-        if dtype is not None:
-            if not isinstance(dtype, core.VarDesc.VarType):
-                dtype = convert_np_dtype_to_dtype_(dtype)
+        if dtype is not None and not isinstance(dtype, core.VarDesc.VarType):
+            dtype = convert_np_dtype_to_dtype_(dtype)
 
         name = kwargs.get('name', unique_name.generate('_param_base'))
 
-        super(ParamBase, self).__init__(dtype
-                                        if dtype else core.VarDesc.VarType.FP32,
-                                        list(shape) if shape else [], name,
-                                        core.VarDesc.VarType.LOD_TENSOR, True)
+        super(ParamBase, self).__init__(
+            dtype or core.VarDesc.VarType.FP32,
+            list(shape) if shape else [],
+            name,
+            core.VarDesc.VarType.LOD_TENSOR,
+            True,
+        )
+
 
         trainable = kwargs.get('trainable', True)
         self.stop_gradient = not trainable
@@ -5898,22 +5887,20 @@ def get_flags(flags):
     flags_value = {}
     if isinstance(flags, (list, tuple)):
         for key in flags:
-            if (core.globals().is_public(key)):
-                value = core.globals()[key]
-                temp = {key: value}
-                flags_value.update(temp)
-            else:
+            if not (core.globals().is_public(key)):
                 raise ValueError(
                     'Flag %s cannot get its value through this function.' %
                     (key))
-    elif isinstance(flags, str):
-        if (core.globals().is_public(flags)):
-            value = core.globals()[flags]
-            temp = {flags: value}
+            value = core.globals()[key]
+            temp = {key: value}
             flags_value.update(temp)
-        else:
+    elif isinstance(flags, str):
+        if not (core.globals().is_public(flags)):
             raise ValueError(
                 'Flag %s cannot get its value through this function.' % (flags))
+        value = core.globals()[flags]
+        temp = {flags: value}
+        flags_value.update(temp)
     else:
         raise TypeError('Flags in get_flags should be a list, tuple or string.')
     return flags_value

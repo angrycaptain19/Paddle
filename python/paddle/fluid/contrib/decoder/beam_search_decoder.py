@@ -148,8 +148,7 @@ class _ArrayState(object):
             outputs={'Out': self._state_array})
 
     def get_state(self):
-        state = layers.array_read(array=self._state_array, i=self._counter)
-        return state
+        return layers.array_read(array=self._state_array, i=self._counter)
 
     def update_state(self, state):
         layers.increment(x=self._counter, value=1, in_place=True)
@@ -835,8 +834,7 @@ class BeamSearchDecoder(object):
         parent_block_idx = program.current_block().parent_idx
         if parent_block_idx < 0:
             raise ValueError('Invalid block with index %d.' % parent_block_idx)
-        parent_block = program.block(parent_block_idx)
-        return parent_block
+        return program.block(parent_block_idx)
 
     def _assert_in_decoder_block(self, method):
         if self._status != BeamSearchDecoder.IN_BEAM_SEARCH_DECODER:

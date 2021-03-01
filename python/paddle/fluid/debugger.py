@@ -298,9 +298,9 @@ def prepare_fast_nan_inf_debug(_program):
 
     for _block in _program.blocks:
         # fetch vars in the current block
-        _vars_in_prog = []
-        for _var_name in _block.vars:
-            _vars_in_prog.append((_var_name, _block.vars[_var_name]))
+        _vars_in_prog = [
+            (_var_name, _block.vars[_var_name]) for _var_name in _block.vars
+        ]
 
         # append sum_op in the current block
         for _var_name, _var in _vars_in_prog:
@@ -344,7 +344,7 @@ def run_fast_nan_inf_debug(executor,
     assert (executor is not None)
 
     try:
-        output = executor.run(program=program,
+        return executor.run(program=program,
                               feed=feed,
                               fetch_list=fetch_list,
                               feed_var_name=feed_var_name,
@@ -352,8 +352,6 @@ def run_fast_nan_inf_debug(executor,
                               scope=scope,
                               return_numpy=return_numpy,
                               use_program_cache=use_program_cache)
-
-        return output
 
     except Exception as e:
 

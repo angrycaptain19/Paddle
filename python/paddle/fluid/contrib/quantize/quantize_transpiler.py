@@ -69,12 +69,11 @@ def _original_var_name(var_name):
 
 
 def _is_float(v):
-    return isinstance(v, float) or isinstance(v, np.float32)
+    return isinstance(v, (float, np.float32))
 
 
 def quant(x, scale, num_bits):
-    y = np.round(x / scale * ((1 << (num_bits - 1)) - 1))
-    return y
+    return np.round(x / scale * ((1 << (num_bits - 1)) - 1))
 
 
 class QuantizeTranspiler(object):
@@ -392,10 +391,7 @@ class QuantizeTranspiler(object):
                 args += op.output_arg_names
             args = list(set(args))  #vals of all left ops
             var_names = block.vars.keys()  # all vals
-            sub_block_remove_vars = []
-            for var in var_names:
-                if var not in args:
-                    sub_block_remove_vars.append(var)
+            sub_block_remove_vars = [var for var in var_names if var not in args]
             all_remove_vars.append(sub_block_remove_vars)
 
         remove_vars = [list(set(v)) for v in all_remove_vars]

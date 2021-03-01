@@ -111,7 +111,7 @@ class CleanupFuncRegistrar():
 # memory-mapped file remaining on the disk (/dev/shm), so register this function
 # to clean up shared memory objects in these two queues before the python interpreter exits.
 # NOTE: Currently multi-process DataLoader only supports Linux platform
-if not (sys.platform == 'darwin' or sys.platform == 'win32'):
+if not sys.platform in ['darwin', 'win32']:
     CleanupFuncRegistrar.register(_cleanup)
 
 # ------------ SIGCHLD handler setting --------------

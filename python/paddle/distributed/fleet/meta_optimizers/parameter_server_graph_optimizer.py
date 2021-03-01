@@ -34,10 +34,7 @@ class ParameterServerGraphOptimizer(ParameterServerOptimizer):
         if self.role_maker._is_server():
             return False
 
-        if self.role_maker._is_heter_parameter_server_mode:
-            return False
-
-        return True
+        return not self.role_maker._is_heter_parameter_server_mode
 
     def _disable_strategy(self, dist_strategy):
         return

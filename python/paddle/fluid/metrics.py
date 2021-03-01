@@ -263,10 +263,7 @@ class CompositeMetric(MetricBase):
             list: results of all added metrics. 
             The shape and dtype of each result depend on the definition of its metric.
         """
-        ans = []
-        for m in self._metrics:
-            ans.append(m.eval())
-        return ans
+        return [m.eval() for m in self._metrics]
 
 
 class Precision(MetricBase):
@@ -914,10 +911,10 @@ class DetectionMAP(object):
             evaluate_difficult=evaluate_difficult,
             ap_version=ap_version)
 
-        states = []
-        states.append(
-            self._create_state(
-                dtype='int32', shape=None, suffix='accum_pos_count'))
+        states = [
+            self._create_state(dtype='int32', shape=None, suffix='accum_pos_count')
+        ]
+
         states.append(
             self._create_state(
                 dtype='float32', shape=None, suffix='accum_true_pos'))
@@ -960,12 +957,11 @@ class DetectionMAP(object):
             shape(tuple|list): the shape of state
         Returns: State variable
         """
-        state = self.helper.create_variable(
+        return self.helper.create_variable(
             name="_".join([unique_name.generate(self.helper.name), suffix]),
             persistable=True,
             dtype=dtype,
             shape=shape)
-        return state
 
     def get_map_var(self):
         """

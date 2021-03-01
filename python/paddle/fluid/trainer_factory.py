@@ -47,7 +47,6 @@ class TrainerFactory(object):
             # default is MultiTrainer + Hogwild
             trainer = MultiTrainer()
             device_worker = Hogwild()
-            trainer._set_device_worker(device_worker)
         else:
             trainer_class = opt_info["trainer"]
             device_worker_class = opt_info["device_worker"]
@@ -107,7 +106,7 @@ class TrainerFactory(object):
                         "check_nan_var_names"])
                 if opt_info.get("loss_names") is not None:
                     trainer._set_loss_names(opt_info["loss_names"])
-            trainer._set_device_worker(device_worker)
+        trainer._set_device_worker(device_worker)
         return trainer
 
 
@@ -147,16 +146,16 @@ class FetchHandlerMonitor(object):
             else:
                 elapsed_secs = 0
                 fetch_dict = {}
-                for key in var_name_to_key:
+                for key, value in var_name_to_key.items():
                     var = scope.find_var(key)
                     fetch_dict[key] = var
-                    if var == None:
+                    if var is None:
                         local_logger.warning("{} value currently not available".
-                                             format(var_name_to_key[key]))
+                                             format(value))
                 res_dict = {}
-                for key in fetch_dict:
+                for key, value_ in fetch_dict.items():
                     user_name = var_name_to_key[key]
-                    if fetch_dict[key] == None:
+                    if value_ is None:
                         res_dict[user_name] = None
                         continue
                     else:

@@ -812,7 +812,7 @@ class BilinearInitializer(Initializer):
         weight = np.reshape(weight, shape)
 
         # to be compatible of fp16 initalizers
-        if var.dtype == VarDesc.VarType.FP16 or var.dtype == VarDesc.VarType.FP64:
+        if var.dtype in [VarDesc.VarType.FP16, VarDesc.VarType.FP64]:
             out_dtype = VarDesc.VarType.FP32
             out_var = block.create_var(
                 name=unique_name.generate(".".join(
@@ -825,12 +825,11 @@ class BilinearInitializer(Initializer):
             out_dtype = var.dtype
             out_var = var
 
-        if out_dtype == VarDesc.VarType.FP32:
-            value_name = "fp32_values"
-            values = [float(v) for v in weight.flat]
-        else:
+        if out_dtype != VarDesc.VarType.FP32:
             raise TypeError("Unsupported dtype %s", var.dtype)
 
+        value_name = "fp32_values"
+        values = [float(v) for v in weight.flat]
         if np.prod(shape) > 1024 * 1024:
             raise ValueError("The size of input is too big. ")
         op = block.append_op(
@@ -842,7 +841,7 @@ class BilinearInitializer(Initializer):
                 value_name: values
             })
 
-        if var.dtype == VarDesc.VarType.FP16 or var.dtype == VarDesc.VarType.FP64:
+        if var.dtype in [VarDesc.VarType.FP16, VarDesc.VarType.FP64]:
             block.append_op(
                 type="cast",
                 inputs={"X": out_var},

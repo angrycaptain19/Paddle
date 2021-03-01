@@ -137,10 +137,7 @@ class OpDescCreationMethod(object):
         Reduce a boolean array to a single boolean parameter. If any element in
         the array is True, this function will return True, otherwise False.
         """
-        for flag in generator:
-            if flag:
-                return True
-        return False
+        return any(generator)
 
 
 class OpInfo(object):
@@ -172,7 +169,7 @@ def create_op_creation_method(op_proto):
 
 class OperatorFactory(object):
     def __init__(self):
-        self.op_methods = dict()
+        self.op_methods = {}
 
         for op_proto in get_all_op_protos():
             method = create_op_creation_method(op_proto)

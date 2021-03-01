@@ -206,8 +206,7 @@ class DatasetBase(object):
         Set data_feed_desc before load or shuffle,
         user no need to call this function.
         """
-        if self.thread_num > len(self.filelist):
-            self.thread_num = len(self.filelist)
+        self.thread_num = min(self.thread_num, len(self.filelist))
         self.dataset.set_thread_num(self.thread_num)
         self.dataset.set_data_feed_desc(self._desc())
         self.dataset.create_readers()
@@ -1099,8 +1098,7 @@ class QueueDataset(DatasetBase):
         Set data_feed_desc/thread num/filelist before run,
         user no need to call this function.
         """
-        if self.thread_num > len(self.filelist):
-            self.thread_num = len(self.filelist)
+        self.thread_num = min(self.thread_num, len(self.filelist))
         if self.thread_num == 0:
             self.thread_num = 1
         self.dataset.set_thread_num(self.thread_num)

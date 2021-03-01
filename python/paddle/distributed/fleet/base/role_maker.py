@@ -328,8 +328,7 @@ class Gloo(object):
         else:
             ans = self._nodes_comm.all_reduce(input_list, mode)
 
-        output = np.array(ans).reshape(input_shape)
-        return output
+        return np.array(ans).reshape(input_shape)
 
     def all_gather(self, input, comm_world="worker"):
         """
@@ -345,13 +344,11 @@ class Gloo(object):
             raise ValueError(self._err_world)
 
         if comm_world == "worker":
-            output = self._worker_comm.all_gather(input)
+            return self._worker_comm.all_gather(input)
         elif comm_world == "server":
-            output = self._server_comm.all_gather(input)
+            return self._server_comm.all_gather(input)
         else:
-            output = self._nodes_comm.all_gather(input)
-
-        return output
+            return self._nodes_comm.all_gather(input)
 
 
 class RoleMakerBase(object):
@@ -683,20 +680,20 @@ class PaddleCloudRoleMaker(RoleMakerBase):
         self._server_endpoints = self._server_endpoints.split(",")
 
         self._worker_endpoints = os.getenv("PADDLE_TRAINER_ENDPOINTS", None)
-        if self._worker_endpoints != None:
-            self._worker_endpoints = self._worker_endpoints.split(",")
-        else:
+        if self._worker_endpoints is None:
             self._worker_endpoints = []
 
+        else:
+            self._worker_endpoints = self._worker_endpoints.split(",")
         trainers_num = os.getenv("PADDLE_TRAINERS_NUM", None)
-        if trainers_num == None:
+        if trainers_num is None:
             raise ValueError(
                 "Can not find PADDLE_TRAINERS_NUM, please check your environment."
             )
         trainers_num = int(trainers_num)
 
         training_role = os.getenv("TRAINING_ROLE", None)
-        if training_role == None:
+        if training_role is None:
             raise ValueError(
                 "Can not find TRAINING_ROLE, please check your environment.")
 
@@ -726,7 +723,7 @@ class PaddleCloudRoleMaker(RoleMakerBase):
         if training_role == "TRAINER":
             role = Role.WORKER
             current_id = os.getenv("PADDLE_TRAINER_ID", None)
-            if current_id == None:
+            if current_id is None:
                 raise ValueError(
                     "Can not find PADDLE_TRAINER_ID, please check your environment."
                 )
@@ -736,11 +733,11 @@ class PaddleCloudRoleMaker(RoleMakerBase):
         elif training_role == "PSERVER":
             role = Role.SERVER
             port = os.getenv("PADDLE_PORT", None)
-            if port == None:
+            if port is None:
                 raise ValueError(
                     "Can not find PADDLE_PORT, please check your environment.")
             ip = os.getenv("POD_IP", None)
-            if ip == None:
+            if ip is None:
                 raise ValueError(
                     "Can not find POD_IP, please check your environment.")
             self._cur_endpoint = ip + ":" + port
@@ -748,11 +745,11 @@ class PaddleCloudRoleMaker(RoleMakerBase):
         elif training_role == "HETER_TRAINER":
             role = Role.HETER_WORKER
             cur_port = os.getenv("PADDLE_PORT", None)
-            if cur_port == None:
+            if cur_port is None:
                 raise ValueError(
                     "Can not find PADDLE_PORT, please check your environment.")
             cur_ip = os.getenv("POD_IP", None)
-            if cur_ip == None:
+            if cur_ip is None:
                 raise ValueError(
                     "Can not find POD_IP, please check your environment.")
             curr_endpoint = ":".join([cur_ip, cur_port])
@@ -761,8 +758,7 @@ class PaddleCloudRoleMaker(RoleMakerBase):
         self._trainers_num = trainers_num
         self._role = role
         self._current_id = current_id
-        self._nodes_num = len(
-            set([x.split(':')[0] for x in self._worker_endpoints]))
+        self._nodes_num = len({x.split(':')[0] for x in self._worker_endpoints})
         self._heter_trainers_num = heter_trainers_num
         self._heter_trainer_endpoints = heter_trainer_eplist
 
@@ -780,8 +776,7 @@ class PaddleCloudRoleMaker(RoleMakerBase):
             self._non_distributed = True
         self._worker_endpoints = self._worker_endpoints.split(",")
         self._trainers_num = len(self._worker_endpoints)
-        self._nodes_num = len(
-            set([x.split(':')[0] for x in self._worker_endpoints]))
+        self._nodes_num = len({x.split(':')[0] for x in self._worker_endpoints})
 
     def _gloo_init(self):
         # PADDLE_WITH_GLOO 1: trainer barrier, 2: all barrier
@@ -797,7 +792,7 @@ class PaddleCloudRoleMaker(RoleMakerBase):
         ]:
             raise ValueError(self._gloo._err_type)
 
-        need_init_all = True if use_gloo == 2 else False
+        need_init_all = use_gloo == 2
 
         if rendezvous_type == Gloo.RENDEZVOUS.HDFS:
             dfs_name = os.getenv("PADDLE_GLOO_FS_NAME", "")
@@ -809,6 +804,7 @@ class PaddleCloudRoleMaker(RoleMakerBase):
                 "dfs.path": dfs_path,
                 "store.prefix": prefix,
             }
+            type = "HDFS"
         elif rendezvous_type == Gloo.RENDEZVOUS.HTTP:
             start_http_server = False
             manager = Manager()
@@ -830,6 +826,7 @@ class PaddleCloudRoleMaker(RoleMakerBase):
                 'start_http_server': start_http_server,
                 'http_server_d': http_server_d,
             }
+            type = "HTTP"
         else:
             dfs_path = os.getenv("PADDLE_GLOO_FS_PATH", "")
             kwargs = {
@@ -837,11 +834,6 @@ class PaddleCloudRoleMaker(RoleMakerBase):
                 "store.prefix": prefix,
             }
 
-        if rendezvous_type == Gloo.RENDEZVOUS.HDFS:
-            type = "HDFS"
-        elif rendezvous_type == Gloo.RENDEZVOUS.HTTP:
-            type = "HTTP"
-        else:
             type = "FILE"
         print("Gloo init with {}: need_init_all: {}, args: {}".format(
             type, need_init_all, kwargs))
@@ -895,16 +887,14 @@ class UserDefinedRoleMaker(PaddleCloudRoleMaker):
             self._cur_endpoint = self._worker_endpoints[self._current_id]
         elif self._role == Role.SERVER:
             self._cur_endpoint = self._server_endpoints[self._current_id]
-        self._nodes_num = len(
-            set([x.split(':')[0] for x in self._worker_endpoints]))
+        self._nodes_num = len({x.split(':')[0] for x in self._worker_endpoints})
 
     def _user_defined_collective_env(self):
         self._worker_endpoints = self._kwargs.get("worker_endpoints")
         self._current_id = self._kwargs.get("current_id")
         self._trainers_num = len(self._worker_endpoints)
         self._training_role = Role.WORKER
-        self._nodes_num = len(
-            set([x.split(':')[0] for x in self._worker_endpoints]))
+        self._nodes_num = len({x.split(':')[0] for x in self._worker_endpoints})
 
     def _generate_role(self):
         """

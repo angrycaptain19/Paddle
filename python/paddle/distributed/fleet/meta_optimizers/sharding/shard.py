@@ -26,7 +26,7 @@ class Shard(object):
 
     def setup(self, params_grads, worker_idx, worker_num):
         # param names of all devices
-        self.global_params = set([x[0].name for x in params_grads])
+        self.global_params = {x[0].name for x in params_grads}
         # _param(str) -> device_id(int) 
         self.worker_idx = worker_idx
         self.worker_num = worker_num
@@ -42,8 +42,7 @@ class Shard(object):
         return self._var_device_id(var_name) == self.worker_idx
 
     def has_var(self, var_name):
-        return self._var_device_id(var_name) == -1 or \
-            self._var_device_id(var_name) == self.worker_idx
+        return self._var_device_id(var_name) in [-1, self.worker_idx]
 
     def _split_params(self, params_grads, worker_idx, worker_num):
         param2device = {}

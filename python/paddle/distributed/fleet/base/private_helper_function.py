@@ -45,11 +45,11 @@ def wait_server_ready(endpoints):
                 if result != 0:
                     all_ok = False
                     not_ready_endpoints.append(ep)
-        if not all_ok:
-            sys.stderr.write("server not ready, wait 3 sec to retry...\n")
-            sys.stderr.write("not ready endpoints:" + str(not_ready_endpoints) +
-                             "\n")
-            sys.stderr.flush()
-            time.sleep(3)
-        else:
+        if all_ok:
             break
+
+        sys.stderr.write("server not ready, wait 3 sec to retry...\n")
+        sys.stderr.write("not ready endpoints:" + str(not_ready_endpoints) +
+                         "\n")
+        sys.stderr.flush()
+        time.sleep(3)

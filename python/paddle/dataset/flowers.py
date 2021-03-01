@@ -126,11 +126,7 @@ def reader_creator(data_file,
                     file = file.strip()
                     batch = None
                     with open(file, 'rb') as f:
-                        if six.PY2:
-                            batch = pickle.load(f)
-                        else:
-                            batch = pickle.load(f, encoding='bytes')
-
+                        batch = pickle.load(f) if six.PY2 else pickle.load(f, encoding='bytes')
                         if six.PY3:
                             batch = cpt.to_text(batch)
                         data_batch = batch['data']

@@ -271,15 +271,14 @@ def has_feed_operators(block, feed_targets, feed_holder_name):
 
     feed_count = 0
     for op in block.ops:
-        if op.desc.type() == 'feed':
-            feed_count += 1
-            assert op.desc.input('X')[0] == feed_holder_name
-            feed_target_name = op.desc.output('Out')[0]
-            if feed_target_name not in feed_targets:
-                raise Exception("'feed_targets' does not have {} variable".
-                                format(feed_target_name))
-        else:
+        if op.desc.type() != 'feed':
             break
+        feed_count += 1
+        assert op.desc.input('X')[0] == feed_holder_name
+        feed_target_name = op.desc.output('Out')[0]
+        if feed_target_name not in feed_targets:
+            raise Exception("'feed_targets' does not have {} variable".
+                            format(feed_target_name))
     if feed_count > 0 and feed_count != len(feed_targets):
         raise Exception(
             "Feed operators in program desc do not match 'feed_targets'")
@@ -391,7 +390,7 @@ def _get_program_cache_key(feed, fetch_list):
     feed_var_names = []
     if isinstance(feed, dict):
         feed_var_names = list(feed.keys())
-    elif isinstance(feed, list) or isinstance(feed, tuple):
+    elif isinstance(feed, (list, tuple)):
         for i, each in enumerate(feed):
             feed_var_names += list(each.keys())
     fetch_var_names = list(map(_to_name_str, fetch_list))
@@ -554,15 +553,15 @@ class Executor(object):
         else:
             self.place = framework._get_paddle_place(place)
         self.program_caches = dict()
-        self.ctx_caches = dict()
+        self.ctx_caches = {}
         self.scope_caches = dict()
-        self.var_caches = dict()
-        self.pruned_program_caches = dict()
+        self.var_caches = {}
+        self.pruned_program_caches = {}
         p = core.Place()
         p.set_place(self.place)
         self._default_executor = core.Executor(p)
         self._closed = False
-        self.pruned_program_scope_caches = dict()
+        self.pruned_program_scope_caches = {}
         self._prepare_to_run_called = False
 
         self._auto_checkpoint_name = unique_name.generate(
@@ -637,8 +636,7 @@ class Executor(object):
         # append fetch_operators
         if not has_fetch_operators(global_block, fetch_list, fetch_var_name):
             for i, var in enumerate(fetch_list):
-                assert isinstance(var, Variable) or isinstance(
-                    var, six.string_types), (
+                assert isinstance(var, (Variable, six.string_types)), (
                         "Wrong type for fetch_list[%s]: %s" % (i, type(var)))
                 global_block.append_op(
                     type='fetch',
@@ -665,11 +663,10 @@ class Executor(object):
                 break
 
     def _fetch_data(self, fetch_list, fetch_var_name, scope):
-        outs = [
+        return [
             core.get_fetch_variable(scope, fetch_var_name, i)
             for i in six.moves.range(len(fetch_list))
         ]
-        return outs
 
     def _split_optimize_ops_in_fetch_list(self, fetch_list):
         """
@@ -695,8 +692,7 @@ class Executor(object):
                 else:
                     raise TypeError(
                         "The operator in fetch_list is not an optimize_op")
-            elif isinstance(item, Variable) or isinstance(
-                    item, str) or isinstance(item, six.string_types):
+            elif isinstance(item, (Variable, str, six.string_types)):
                 _fetch_list.append(item)
             else:
                 raise TypeError(
@@ -756,7 +752,7 @@ class Executor(object):
         feed_names = []
         if isinstance(feed, dict):
             feed_names = list(feed.keys())
-        elif isinstance(feed, list) or isinstance(feed, tuple):
+        elif isinstance(feed, (list, tuple)):
             for i, each in enumerate(feed):
                 feed_names += list(each.keys())
 
@@ -814,7 +810,7 @@ class Executor(object):
                         "The variable %s is not found in program. It is not declared or is pruned."
                         % feed_name)
 
-        elif isinstance(feed, list) or isinstance(feed, tuple):
+        elif isinstance(feed, (list, tuple)):
             for i, each in enumerate(feed):
                 for feed_name in list(each.keys()):
                     if not global_block.has_var(feed_name):
@@ -863,7 +859,7 @@ class Executor(object):
         if need_check_feed:
             global_block = program._program.global_block()
         if isinstance(feed, dict):
-            feed_tensor_dict = dict()
+            feed_tensor_dict = {}
             for feed_name in feed:
                 feed_tensor = feed[feed_name]
                 var = global_block.var(feed_name) if need_check_feed else None
@@ -878,13 +874,13 @@ class Executor(object):
                 feed_tensor_dict[feed_name] = feed_tensor
 
             exe.feed_and_split_tensor_into_local_scopes(feed_tensor_dict)
-        elif isinstance(feed, list) or isinstance(feed, tuple):
-            res = list()
+        elif isinstance(feed, (list, tuple)):
+            res = []
             for i, each in enumerate(feed):
                 if not isinstance(each, dict):
                     raise TypeError(
                         "Each element of feed list should be a dict")
-                res_dict = dict()
+                res_dict = {}
                 for feed_name in each:
                     tensor = each[feed_name]
                     var = global_block.var(
@@ -1120,14 +1116,14 @@ class Executor(object):
             program = default_main_program()
 
         if fetch_list is not None:
-            if isinstance(fetch_list, Variable) or isinstance(
-                    fetch_list, str) or isinstance(fetch_list,
-                                                   six.string_types):
+            if isinstance(fetch_list, (Variable, str, six.string_types)):
                 fetch_list = [fetch_list]
-            assert isinstance(fetch_list, tuple) or isinstance(fetch_list, list), \
-                "Currently , The fetch_list type only should be list or tuple, \n"\
-                "but the input type is {}. For more information please refer to \n"\
+            assert isinstance(fetch_list, (tuple, list)), (
+                "Currently , The fetch_list type only should be list or tuple, \n"
+                "but the input type is {}. For more information please refer to \n"
                 "the executor.run(...).".format(type(fetch_list))
+            )
+
         else:
             fetch_list = []
 
@@ -1372,7 +1368,7 @@ class Executor(object):
                          fetch_info=None,
                          print_period=100):
         is_heter = 0
-        if not program._fleet_opt is None:
+        if program._fleet_opt is not None:
             if program._fleet_opt.get("worker_class", "") == "HeterCpuWorker":
                 is_heter = 1
             if program._fleet_opt.get("trainer", "") == "HeterXpuTrainer":
@@ -1441,10 +1437,10 @@ class Executor(object):
                 raise RuntimeError("dataset should be None for pipeline mode")
             # The following fake dataset is created to call 
             # the _prepare_trainer api, and it is meaningless.
-            data_vars = []
-            for var in program.global_block().vars.values():
-                if var.is_data:
-                    data_vars.append(var)
+            data_vars = [
+                var for var in program.global_block().vars.values() if var.is_data
+            ]
+
             dataset = paddle.fluid.DatasetFactory().create_dataset(
                 'FileInstantDataset')
             dataset.set_batch_size(1)
@@ -1501,12 +1497,10 @@ class Executor(object):
             fetch_monitor.start()
             self._default_executor.run_from_dataset(trainer_instance)
             fetch_monitor.stop()
-            self._default_executor.release_trainer(trainer_instance)
         else:
 
             self._default_executor.run_from_dataset(trainer_instance)
-            self._default_executor.release_trainer(trainer_instance)
-
+        self._default_executor.release_trainer(trainer_instance)
         dataset._dynamic_adjust_after_train()
         dataset._finish_to_run()
         if real_fetch_list:

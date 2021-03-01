@@ -44,8 +44,11 @@ class Rank(object):
         if not self.nodes:
             return ''
 
-        return '{' + 'rank={};'.format(self.kind) + \
-               ','.join([node.name for node in self.nodes]) + '}'
+        return (
+            '{'
+            + 'rank={};'.format(self.kind)
+            + ','.join(node.name for node in self.nodes)
+        ) + '}'
 
 
 class Graph(object):
@@ -111,9 +114,7 @@ class Graph(object):
             six.iteritems(self.rank_groups),
             key=functools.cmp_to_key(
                 lambda a, b: a[1].priority > b[1].priority))
-        repr = []
-        for x in ranks:
-            repr.append(str(x[1]))
+        repr = [str(x[1]) for x in ranks]
         return '\n'.join(repr) + '\n'
 
     def __str__(self):
@@ -149,13 +150,12 @@ class Node(object):
         Node.counter += 1
 
     def __str__(self):
-        reprs = '{name} [label={label} {extra} ];'.format(
+        return '{name} [label={label} {extra} ];'.format(
             name=self.name,
             label=self.label,
             extra=',' + ','.join("%s=%s" % (key, crepr(value))
                                  for key, value in six.iteritems(self.attrs))
             if self.attrs else "")
-        return reprs
 
 
 class Edge(object):
@@ -172,13 +172,12 @@ class Edge(object):
         self.attrs = attrs
 
     def __str__(self):
-        repr = "{source} -> {target} {extra}".format(
+        return "{source} -> {target} {extra}".format(
             source=self.source.name,
             target=self.target.name,
             extra="" if not self.attrs else
             "[" + ','.join("{}={}".format(attr[0], crepr(attr[1]))
                            for attr in six.iteritems(self.attrs)) + "]")
-        return repr
 
 
 class GraphPreviewGenerator(object):

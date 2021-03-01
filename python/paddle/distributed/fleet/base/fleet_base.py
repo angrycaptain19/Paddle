@@ -185,22 +185,20 @@ class Fleet(object):
         self._user_defined_strategy = copy.deepcopy(strategy)
 
         if role_maker is None:
-            if isinstance(is_collective, bool):
-                self._is_collective = is_collective
-                self._role_maker = PaddleCloudRoleMaker(
-                    is_collective=self._is_collective)
-            else:
+            if not isinstance(is_collective, bool):
                 raise ValueError(
                     "`is_collective` should be instance of `bool`, but got {}".
                     format(type(is_collective)))
+            self._is_collective = is_collective
+            self._role_maker = PaddleCloudRoleMaker(
+                is_collective=self._is_collective)
         else:
-            if isinstance(role_maker, RoleMakerBase):
-                self._role_maker = role_maker
-                self._is_collective = role_maker._is_collective
-            else:
+            if not isinstance(role_maker, RoleMakerBase):
                 raise ValueError(
                     "`role_maker` should be subclass of `RoleMakerBase`, but got {}".
                     format(type(role_maker)))
+            self._role_maker = role_maker
+            self._is_collective = role_maker._is_collective
         self._role_maker._generate_role()
 
         import paddle.distributed.fleet as fleet
@@ -208,13 +206,16 @@ class Fleet(object):
 
         self.strategy_compiler = StrategyCompiler()
 
-        if self._role_maker._is_non_distributed() and self._is_collective:
-            if paddle.fluid.core.is_compiled_with_cuda():
-                gpus_num = paddle.fluid.core.get_cuda_device_count()
-                if gpus_num != 1:
-                    raise ValueError(
-                        "CUDA_VISIBLE_DEVICES shoule be set only 1 card if you use `python` to launch fleet program."
-                    )
+        if (
+            self._role_maker._is_non_distributed()
+            and self._is_collective
+            and paddle.fluid.core.is_compiled_with_cuda()
+        ):
+            gpus_num = paddle.fluid.core.get_cuda_device_count()
+            if gpus_num != 1:
+                raise ValueError(
+                    "CUDA_VISIBLE_DEVICES shoule be set only 1 card if you use `python` to launch fleet program."
+                )
 
         if paddle.fluid.framework.in_dygraph_mode():
             if self.worker_num() == 1:
@@ -1031,9 +1032,10 @@ class Fleet(object):
                 amp_optimizer = optimizer
                 break
 
-        if amp_optimizer is None:
-            if hasattr(self.user_defined_optimizer, 'amp_init'):
-                amp_optimizer = self.user_defined_optimizer
+        if amp_optimizer is None and hasattr(
+            self.user_defined_optimizer, 'amp_init'
+        ):
+            amp_optimizer = self.user_defined_optimizer
 
         assert amp_optimizer is not None, \
             "amp_init can only be used when the amp(auto mixed precision) strategy is turned on."
@@ -1041,31 +1043,31 @@ class Fleet(object):
         return amp_optimizer.amp_init(place, scope, test_program, use_fp16_test)
 
     def _final_strategy(self):
-        if "valid_strategy" not in self._context:
-            print(
-                "WARNING: You may need to call minimize function before this function is called"
-            )
-            return {}
-        else:
+        if "valid_strategy" in self._context:
             return self._context["valid_strategy"]
 
+        print(
+            "WARNING: You may need to call minimize function before this function is called"
+        )
+        return {}
+
     def _get_applied_meta_list(self):
-        if "applied_meta_list" not in self._context:
-            print(
-                "WARNING: You may need to call minimize function before _get_applied_meta_list called"
-            )
-            return []
-        else:
+        if "applied_meta_list" in self._context:
             return self._context["applied_meta_list"]
 
+        print(
+            "WARNING: You may need to call minimize function before _get_applied_meta_list called"
+        )
+        return []
+
     def _get_applied_graph_list(self):
-        if "applied_graph_list" not in self._context:
-            print(
-                "WARNING: You may need to call minimize function before _get_applied_graph_list called"
-            )
-            return []
-        else:
+        if "applied_graph_list" in self._context:
             return self._context["applied_graph_list"]
+
+        print(
+            "WARNING: You may need to call minimize function before _get_applied_graph_list called"
+        )
+        return []
 
     def minimize(self,
                  loss,
@@ -1122,9 +1124,7 @@ class Fleet(object):
                 # for more examples, please reference https://github.com/PaddlePaddle/FleetX
 
         """
-        context = {}
-        context["user_defined_strategy"] = copy.deepcopy(
-            self._user_defined_strategy)
+        context = {"user_defined_strategy": copy.deepcopy(self._user_defined_strategy)}
         if paddle.fluid.framework.in_dygraph_mode():
             # imitate target optimizer retrieval
             target_opt = self.user_defined_optimizer
@@ -1135,7 +1135,7 @@ class Fleet(object):
         self.origin_main_program = loss.block.program
         context["origin_main_program"] = self.origin_main_program
         context["loss"] = loss
-        if startup_program == None:
+        if startup_program is None:
             self.origin_startup_program = \
                 paddle.static.default_startup_program().clone(for_test=False)
             startup_program = paddle.static.default_startup_program()

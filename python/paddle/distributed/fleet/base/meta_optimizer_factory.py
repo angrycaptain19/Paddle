@@ -23,7 +23,7 @@ class MetaOptimizerFactory(object):
         pass
 
     def _get_valid_meta_optimizers(self, user_defined_optimizer):
-        opt_list = []
-        for opt_name in meta_optimizer_names:
-            opt_list.append(globals()[opt_name](user_defined_optimizer))
-        return opt_list
+        return [
+            globals()[opt_name](user_defined_optimizer)
+            for opt_name in meta_optimizer_names
+        ]

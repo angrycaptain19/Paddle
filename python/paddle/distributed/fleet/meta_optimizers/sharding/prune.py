@@ -56,10 +56,10 @@ class ProgramDeps(object):
                 continue
             input_vars = op.desc.input_arg_names()
             output_vars = op.desc.output_arg_names()
-            deps_reduce = False
-            for input_name in input_vars:
-                if input_name in self._var_to_use_op:
-                    deps_reduce = True
+            deps_reduce = any(
+                input_name in self._var_to_use_op for input_name in input_vars
+            )
+
             if not deps_reduce:
                 continue
             for input_name in input_vars:
@@ -110,10 +110,11 @@ class ProgramDeps(object):
         if var_name in self._var_to_generate_op:
             assert (op_idx in self._var_to_generate_op[var_name])
             self._var_to_generate_op[var_name].remove(op_idx)
-        if self._block.has_var(var_name):
-            if var_name not in self._var_to_generate_op or self._var_to_generate_op[
-                    var_name] == []:
-                self._block._remove_var(var_name, sync=False)
+        if self._block.has_var(var_name) and (
+            var_name not in self._var_to_generate_op
+            or self._var_to_generate_op[var_name] == []
+        ):
+            self._block._remove_var(var_name, sync=False)
 
     def remove_op(self, op_idx):
         # update deps
@@ -126,7 +127,7 @@ class ProgramDeps(object):
 
     def should_remove_op(self, op_idx):
         op = self._block.ops[op_idx]
-        for output_name in op.desc.output_arg_names():
-            if output_name not in self._should_removed_var:
-                return False
-        return True
+        return all(
+            output_name in self._should_removed_var
+            for output_name in op.desc.output_arg_names()
+        )

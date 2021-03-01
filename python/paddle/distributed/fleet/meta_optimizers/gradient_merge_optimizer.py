@@ -46,9 +46,8 @@ class GradientMergeOptimizer(MetaOptimizerBase):
         if not self.role_maker._is_collective:
             return False
 
-        can_apply = (self.user_defined_strategy.gradient_merge == True) and \
+        return (self.user_defined_strategy.gradient_merge == True) and \
             self.user_defined_strategy.gradient_merge_configs["k_steps"] > 1
-        return can_apply
 
     def _disable_strategy(self, dist_strategy):
         dist_strategy.gradient_merge = False

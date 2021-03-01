@@ -121,7 +121,7 @@ class Distribution(object):
                     )
                 arg_np = arg_np.astype('float32')
             # tmp is used to support broadcast, it summarizes shapes of all the args and get the mixed shape.
-            tmp = tmp + arg_np
+            tmp += arg_np
             numpy_args.append(arg_np)
 
         dtype = tmp.dtype
@@ -283,8 +283,8 @@ class Uniform(Distribution):
 
         name = self.name + '_sample'
         batch_shape = list((self.low + self.high).shape)
+        output_shape = shape + batch_shape
         if self.batch_size_unknown:
-            output_shape = shape + batch_shape
             zero_tmp = tensor.fill_constant_batch_size_like(
                 self.low + self.high, batch_shape + shape, self.dtype, 0.)
             uniform_random_tmp = nn.uniform_random_batch_size_like(
@@ -302,7 +302,6 @@ class Uniform(Distribution):
             output = elementwise_add(output, self.low, name=name)
             return output
         else:
-            output_shape = shape + batch_shape
             output = nn.uniform_random(
                 output_shape, seed=seed, dtype=self.dtype) * (tensor.zeros(
                     output_shape, dtype=self.dtype) + (self.high - self.low))
@@ -506,8 +505,8 @@ class Normal(Distribution):
         batch_shape = list((self.loc + self.scale).shape)
         name = self.name + '_sample'
 
+        output_shape = shape + batch_shape
         if self.batch_size_unknown:
-            output_shape = shape + batch_shape
             zero_tmp = tensor.fill_constant_batch_size_like(
                 self.loc + self.scale, batch_shape + shape, self.dtype, 0.)
             zero_tmp_reshape = nn.reshape(zero_tmp, output_shape)
@@ -518,7 +517,6 @@ class Normal(Distribution):
             output = elementwise_add(output, self.loc, name=name)
             return output
         else:
-            output_shape = shape + batch_shape
             output = nn.gaussian_random(output_shape, mean=0., std=1., seed=seed, dtype=self.dtype) * \
                      (tensor.zeros(output_shape, dtype=self.dtype) + self.scale)
             output = elementwise_add(output, self.loc, name=name)
@@ -816,13 +814,11 @@ class Categorical(Distribution):
         z = nn.reduce_sum(e_logits, dim=-1, keep_dim=True)
         other_z = nn.reduce_sum(other_e_logits, dim=-1, keep_dim=True)
         prob = e_logits / z
-        kl = nn.reduce_sum(
+        return nn.reduce_sum(
             prob * (logits - nn.log(z) - other_logits + nn.log(other_z)),
             dim=-1,
             keep_dim=True,
             name=name)
-
-        return kl
 
     def entropy(self):
         """Shannon entropy in nats.
@@ -856,8 +852,7 @@ class Categorical(Distribution):
 
         neg_entropy = nn.reduce_sum(
             prob * (logits - nn.log(z)), dim=-1, keep_dim=True)
-        entropy = nn.scale(neg_entropy, scale=-1.0, name=name)
-        return entropy
+        return nn.scale(neg_entropy, scale=-1.0, name=name)
 
     def probs(self, value):
         """Probabilities of the given category (``value``).

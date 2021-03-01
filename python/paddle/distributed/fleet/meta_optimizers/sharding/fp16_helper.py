@@ -36,10 +36,10 @@ class FP16Utils(object):
             return False
         input_var = block.var(input_name)
         output_var = block.var(output_name)
-        if input_var.dtype != core.VarDesc.VarType.FP32 or \
-            output_var.dtype != core.VarDesc.VarType.FP16:
-            return False
-        return True
+        return (
+            input_var.dtype == core.VarDesc.VarType.FP32
+            and output_var.dtype == core.VarDesc.VarType.FP16
+        )
 
     @staticmethod
     def is_fp32_cast_op(block, op):
@@ -53,10 +53,10 @@ class FP16Utils(object):
             0], op.desc.output_arg_names()[0]
         input_var = block.var(input_name)
         output_var = block.var(output_name)
-        if input_var.dtype != core.VarDesc.VarType.FP16 or \
-            output_var.dtype != core.VarDesc.VarType.FP32:
-            return False
-        return True
+        return (
+            input_var.dtype == core.VarDesc.VarType.FP16
+            and output_var.dtype == core.VarDesc.VarType.FP32
+        )
 
     @staticmethod
     def remove_cast_op(block, params, segment, offset):

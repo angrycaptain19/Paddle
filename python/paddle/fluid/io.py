@@ -116,9 +116,11 @@ def is_persistable(var):
             param = fluid.default_main_program().global_block().var('fc.b')
             res = fluid.io.is_persistable(param)
     """
-    if var.desc.type() == core.VarDesc.VarType.FEED_MINIBATCH or \
-                    var.desc.type() == core.VarDesc.VarType.FETCH_LIST or \
-                    var.desc.type() == core.VarDesc.VarType.READER:
+    if var.desc.type() in [
+        core.VarDesc.VarType.FEED_MINIBATCH,
+        core.VarDesc.VarType.FETCH_LIST,
+        core.VarDesc.VarType.READER,
+    ]:
         return False
     return var.persistable
 
@@ -207,9 +209,9 @@ def _clone_var_in_block_(block, var):
 
 @signature_safe_contextmanager
 def _load_program_scope(main=None, startup=None, scope=None):
-    prog = main if main else paddle.fluid.Program()
-    startup_prog = startup if startup else paddle.fluid.Program()
-    scope = scope if scope else paddle.fluid.core.Scope()
+    prog = main or paddle.fluid.Program()
+    startup_prog = startup or paddle.fluid.Program()
+    scope = scope or paddle.fluid.core.Scope()
     with paddle.fluid.scope_guard(scope):
         with paddle.fluid.program_guard(prog, startup_prog):
             with paddle.fluid.unique_name.guard():
@@ -327,63 +329,59 @@ def save_vars(executor,
             dirname=dirname,
             vars=list(filter(predicate, main_program.list_vars())),
             filename=filename)
-    else:
-        params_var_name = unique_name.generate("saved_params")
-        # give warning when there is no var in model
-        if len(list(vars)) == 0:
-            warnings.warn(
-                "no variable in your model, please ensure there are any variables in your model to save"
-            )
-            return None
+    params_var_name = unique_name.generate("saved_params")
+    # give warning when there is no var in model
+    if len(list(vars)) == 0:
+        warnings.warn(
+            "no variable in your model, please ensure there are any variables in your model to save"
+        )
+        return None
 
-        save_program = Program()
-        save_block = save_program.global_block()
+    save_program = Program()
+    save_block = save_program.global_block()
 
-        save_var_map = {}
-        for each_var in vars:
-            # NOTE: don't save the variable which type is RAW
-            if each_var.type == core.VarDesc.VarType.RAW:
-                continue
-            new_var = _clone_var_in_block_(save_block, each_var)
-            if filename is None and save_to_memory is False:
-                save_file_path = os.path.join(
-                    os.path.normpath(dirname), new_var.name)
-                save_block.append_op(
-                    type='save',
-                    inputs={'X': [new_var]},
-                    outputs={},
-                    attrs={'file_path': os.path.normpath(save_file_path)})
-            else:
-                save_var_map[new_var.name] = new_var
-
-        if filename is not None or save_to_memory:
-            save_var_list = []
-            for name in sorted(save_var_map.keys()):
-                save_var_list.append(save_var_map[name])
-
-            save_path = str()
-            if save_to_memory is False:
-                save_path = os.path.join(os.path.normpath(dirname), filename)
-
-            saved_params = save_block.create_var(
-                type=core.VarDesc.VarType.RAW, name=params_var_name)
-            saved_params.desc.set_persistable(True)
+    save_var_map = {}
+    for each_var in vars:
+        # NOTE: don't save the variable which type is RAW
+        if each_var.type == core.VarDesc.VarType.RAW:
+            continue
+        new_var = _clone_var_in_block_(save_block, each_var)
+        if filename is None and not save_to_memory:
+            save_file_path = os.path.join(
+                os.path.normpath(dirname), new_var.name)
             save_block.append_op(
-                type='save_combine',
-                inputs={'X': save_var_list},
-                outputs={'Y': saved_params},
-                attrs={
-                    'file_path': save_path,
-                    'save_to_memory': save_to_memory
-                })
+                type='save',
+                inputs={'X': [new_var]},
+                outputs={},
+                attrs={'file_path': os.path.normpath(save_file_path)})
+        else:
+            save_var_map[new_var.name] = new_var
 
-        # NOTE(zhiqiu): save op will add variable kLookupTablePath in save_program.desc,
-        # which leads to diff on save_program and its desc. Call _sync_with_cpp
-        # to keep consistency.
-        save_program._sync_with_cpp()
-        executor.run(save_program)
-        if save_to_memory:
-            return global_scope().find_var(params_var_name).get_bytes()
+    if filename is not None or save_to_memory:
+        save_var_list = [save_var_map[name] for name in sorted(save_var_map.keys())]
+        save_path = str()
+        if not save_to_memory:
+            save_path = os.path.join(os.path.normpath(dirname), filename)
+
+        saved_params = save_block.create_var(
+            type=core.VarDesc.VarType.RAW, name=params_var_name)
+        saved_params.desc.set_persistable(True)
+        save_block.append_op(
+            type='save_combine',
+            inputs={'X': save_var_list},
+            outputs={'Y': saved_params},
+            attrs={
+                'file_path': save_path,
+                'save_to_memory': save_to_memory
+            })
+
+    # NOTE(zhiqiu): save op will add variable kLookupTablePath in save_program.desc,
+    # which leads to diff on save_program and its desc. Call _sync_with_cpp
+    # to keep consistency.
+    save_program._sync_with_cpp()
+    executor.run(save_program)
+    if save_to_memory:
+        return global_scope().find_var(params_var_name).get_bytes()
 
 
 @dygraph_not_support
@@ -562,10 +560,12 @@ def _save_distributed_persistables(executor, dirname, main_program):
 
         # if there is lookup table, the trainer 0 will notify all pserver to save.
         lookup_table_filename = os.path.join(dirname, "__lookup_table__")
-        attrs = {}
-        attrs['epmap'] = endpoints
-        attrs['dir'] = lookup_table_filename
-        attrs['lookup_table'] = distributed_lookup_table
+        attrs = {
+            'epmap': endpoints,
+            'dir': lookup_table_filename,
+            'lookup_table': distributed_lookup_table,
+        }
+
         block.append_op(
             type='checkpoint_notify', inputs={}, outputs={}, attrs=attrs)
         executor.run(prog)
@@ -574,9 +574,11 @@ def _save_distributed_persistables(executor, dirname, main_program):
         def is_valid(var):
             if var.name in exclude_var_names:
                 return False
-            if var.desc.type() == core.VarDesc.VarType.FEED_MINIBATCH or \
-                            var.desc.type() == core.VarDesc.VarType.FETCH_LIST or \
-                            var.desc.type() == core.VarDesc.VarType.READER:
+            if var.desc.type() in [
+                core.VarDesc.VarType.FEED_MINIBATCH,
+                core.VarDesc.VarType.FETCH_LIST,
+                core.VarDesc.VarType.READER,
+            ]:
                 return False
             return var.persistable
 
@@ -865,13 +867,9 @@ def load_vars(executor,
                     outputs={'Out': [new_var]},
                     attrs={'file_path': os.path.join(dirname, new_var.name)})
             else:
-                blocks = []
                 block_paths = os.listdir(var_path)
 
-                for block in block_paths:
-                    if block.startswith(new_var.name):
-                        blocks.append(block)
-
+                blocks = [block for block in block_paths if block.startswith(new_var.name)]
                 slices = []
                 for block in blocks:
                     slice = load_block.create_var(
@@ -896,11 +894,8 @@ def load_vars(executor,
                     attrs={})
 
         if filename is not None:
-            load_var_list = []
-            for name in sorted(load_var_map.keys()):
-                load_var_list.append(load_var_map[name])
-
-            if vars_from_memory is False:
+            load_var_list = [load_var_map[name] for name in sorted(load_var_map.keys())]
+            if not vars_from_memory:
                 filename = os.path.join(dirname, filename)
 
             load_block.append_op(
@@ -1655,8 +1650,10 @@ def _save_persistable_nodes(executor, dirname, graph):
     var_list = []
     for node in persistable_nodes:
         var_desc = node.var()
-        if var_desc.type() == core.VarDesc.VarType.RAW or \
-                        var_desc.type() == core.VarDesc.VarType.READER:
+        if var_desc.type() in [
+            core.VarDesc.VarType.RAW,
+            core.VarDesc.VarType.READER,
+        ]:
             continue
         var = program.global_block().create_var(
             name=var_desc.name(),
@@ -1715,27 +1712,24 @@ def _unpack_saved_dict(saved_obj, protocol):
     temp_saved_obj = {}
     unpack_infor = {}
     # When pickle protocol=2 or protocol=3 the serialized object cannot be larger than 4G.
-    if 1 < protocol < 4:
-        if isinstance(saved_obj, dict):
-            for key, value in saved_obj.items():
-                if isinstance(value, np.ndarray):
-                    MAX_NUMBER_OF_ELEMENT = int(
-                        (2**30 - 1) / value.dtype.itemsize)
-                    num_element = np.prod(value.shape)
-                    if num_element > MAX_NUMBER_OF_ELEMENT:
-                        unpack_infor[key] = {}
-                        unpack_infor[key]["OriginShape"] = value.shape
-                        unpack_infor[key]["slices"] = []
-                        value = value.flatten()
-                        for i in range(
-                                int(
-                                    math.ceil(num_element * 1.0 /
-                                              MAX_NUMBER_OF_ELEMENT))):
-                            part_name = key + "@@." + str(i)
-                            unpack_infor[key]["slices"].append(part_name)
-                            temp_saved_obj[part_name] = value[
-                                i * MAX_NUMBER_OF_ELEMENT:MAX_NUMBER_OF_ELEMENT
-                                * (i + 1)]
+    if 1 < protocol < 4 and isinstance(saved_obj, dict):
+        for key, value in saved_obj.items():
+            if isinstance(value, np.ndarray):
+                MAX_NUMBER_OF_ELEMENT = int(
+                    (2**30 - 1) / value.dtype.itemsize)
+                num_element = np.prod(value.shape)
+                if num_element > MAX_NUMBER_OF_ELEMENT:
+                    unpack_infor[key] = {"OriginShape": value.shape, "slices": []}
+                    value = value.flatten()
+                    for i in range(
+                            int(
+                                math.ceil(num_element * 1.0 /
+                                          MAX_NUMBER_OF_ELEMENT))):
+                        part_name = key + "@@." + str(i)
+                        unpack_infor[key]["slices"].append(part_name)
+                        temp_saved_obj[part_name] = value[
+                            i * MAX_NUMBER_OF_ELEMENT:MAX_NUMBER_OF_ELEMENT
+                            * (i + 1)]
 
     if unpack_infor:
         for key, value in unpack_infor.items():
@@ -2292,11 +2286,11 @@ def set_program_state(program, state_dict):
 
             used_para_list[para.name] = 1
 
-    unused_para_list = []
-    for k, v in state_dict.items():
-        if k not in used_para_list:
-            unused_para_list.append(k)
-    if len(unused_para_list) > 0:
+    unused_para_list = [
+        k for k, v in state_dict.items() if k not in used_para_list
+    ]
+
+    if unused_para_list:
         warnings.warn(
             "This list is not set, Because of Paramerter not found in program. There are: {}".
             format(" ".join(unused_para_list)))

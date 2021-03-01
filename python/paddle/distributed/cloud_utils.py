@@ -38,12 +38,12 @@ def get_cloud_cluster(args_node_ips, args_node_ip, args_port, selected_gpus):
     num_nodes = len(node_ips)
     node_rank = int(node_rank)
 
-    if node_ip != "127.0.0.1" and node_ip != args_node_ip:
+    if node_ip not in ["127.0.0.1", args_node_ip]:
         logger.warning("Please NOTE: When using paddlecloud, node_ip is \
 automatically got from POD_IP. Your input node_ip: {} doesn't equals to \
 node_ip: {} from paddlecloud environment.".format(args_node_ip, node_ip))
 
-    if args_node_ips != "127.0.0.1" and args_node_ips != ",".join(node_ips):
+    if args_node_ips not in ["127.0.0.1", ",".join(node_ips)]:
         logger.warning(
             "Please NOTE: When using paddlecloud, cluster_node_ips is \
 automatically got from PADDLE_TRAINERS(multi nodes) or POD_IP(single node).\
@@ -67,16 +67,15 @@ paddlecloud environment.".format(args_node_ips, node_ips))
 
             except Exception as e:
                 print(e)
-                pass
-
         if started_port is None:
             started_port = 6170
         ports = [
             x for x in range(started_port, started_port + len(selected_gpus))
         ]
-        trainer_endpoints = []
-        for ip in node_ips:
-            trainer_endpoints.append(["%s:%d" % (ip, port) for port in ports])
+        trainer_endpoints = [
+            ["%s:%d" % (ip, port) for port in ports] for ip in node_ips
+        ]
+
     else:
         trainer_endpoints_ori = trainer_endpoints.split(",")
         trainer_endpoints = []

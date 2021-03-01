@@ -78,7 +78,7 @@ class DataGenerator(object):
         batch_samples = []
         line_iter = self.generate_sample(None)
         for user_parsed_line in line_iter():
-            if user_parsed_line == None:
+            if user_parsed_line is None:
                 continue
             batch_samples.append(user_parsed_line)
             if len(batch_samples) == self.batch_size_:
@@ -86,7 +86,7 @@ class DataGenerator(object):
                 for sample in batch_iter():
                     sys.stdout.write(self._gen_str(sample))
                 batch_samples = []
-        if len(batch_samples) > 0:
+        if batch_samples:
             batch_iter = self.generate_batch(batch_samples)
             for sample in batch_iter():
                 sys.stdout.write(self._gen_str(sample))
@@ -120,7 +120,7 @@ class DataGenerator(object):
         for line in sys.stdin:
             line_iter = self.generate_sample(line)
             for user_parsed_line in line_iter():
-                if user_parsed_line == None:
+                if user_parsed_line is None:
                     continue
                 batch_samples.append(user_parsed_line)
                 if len(batch_samples) == self.batch_size_:
@@ -128,7 +128,7 @@ class DataGenerator(object):
                     for sample in batch_iter():
                         sys.stdout.write(self._gen_str(sample))
                     batch_samples = []
-        if len(batch_samples) > 0:
+        if batch_samples:
             batch_iter = self.generate_batch(batch_samples)
             for sample in batch_iter():
                 sys.stdout.write(self._gen_str(sample))
@@ -225,8 +225,7 @@ class DataGenerator(object):
         '''
 
         def local_iter():
-            for sample in samples:
-                yield sample
+            yield from samples
 
         return local_iter
 
@@ -268,9 +267,7 @@ class MultiSlotStringDataGenerator(DataGenerator):
             name, elements = item
             if output:
                 output += " "
-            out_str = []
-            out_str.append(str(len(elements)))
-            out_str.extend(elements)
+            out_str = [str(len(elements)), *elements]
             output += " ".join(out_str)
         return output + "\n"
 

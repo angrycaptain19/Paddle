@@ -374,11 +374,9 @@ class LocalFS(FS):
         if not self.is_exist(fs_path):
             return []
 
-        dirs = [
+        return [
             f for f in os.listdir(fs_path) if os.path.isdir(fs_path + "/" + f)
         ]
-
-        return dirs
 
 
 def _handle_errors(max_time_out=None):

@@ -90,7 +90,7 @@ def download_concat(cache_folder, zip_path):
     data_md5s.append('1e9f15f64e015e58d6f9ec3210ed18b5')
     file_names = []
     print("Downloading full ImageNet Validation dataset ...")
-    for i in range(0, len(data_urls)):
+    for i in range(len(data_urls)):
         download(data_urls[i], cache_folder, data_md5s[i])
         file_name = os.path.join(cache_folder, data_urls[i].split('/')[-1])
         file_names.append(file_name)
@@ -111,23 +111,20 @@ def print_processbar(done_percentage):
 def check_integrity(filename, target_hash):
     print('\nThe binary file exists. Checking file integrity...\n')
     md = hashlib.md5()
-    count = 0
     onepart = FULL_SIZE_BYTES // CHUNK_SIZE // 100
     with open(filename, 'rb') as ifs:
+        count = 0
         while True:
             buf = ifs.read(CHUNK_SIZE)
             if count % onepart == 0:
                 done = count // onepart
                 print_processbar(done)
-            count = count + 1
+            count += 1
             if not buf:
                 break
             md.update(buf)
     hash1 = md.hexdigest()
-    if hash1 == target_hash:
-        return True
-    else:
-        return False
+    return hash1 == target_hash
 
 
 def convert_Imagenet_tar2bin(tar_file, output_file):
@@ -136,10 +133,12 @@ def convert_Imagenet_tar2bin(tar_file, output_file):
 
     print_processbar(0)
 
-    dataset = {}
-    for tarInfo in tar:
-        if tarInfo.isfile() and tarInfo.name != VALLIST_TAR_NAME:
-            dataset[tarInfo.name] = tar.extractfile(tarInfo).read()
+    dataset = {
+        tarInfo.name: tar.extractfile(tarInfo).read()
+        for tarInfo in tar
+        if tarInfo.isfile() and tarInfo.name != VALLIST_TAR_NAME
+    }
+
     with open(output_file, "w+b") as ofs:
         ofs.seek(0)
         num = np.array(int(FULL_IMAGES)).astype('int64')
@@ -150,16 +149,13 @@ def convert_Imagenet_tar2bin(tar_file, output_file):
         val_info = tar.getmember(VALLIST_TAR_NAME)
         val_list = tar.extractfile(val_info).read().decode("utf-8")
         lines = val_list.splitlines()
-        idx = 0
-        for imagedata in dataset.values():
+        for idx, imagedata in enumerate(dataset.values()):
             img = Image.open(io.BytesIO(imagedata))
             img = process_image(img)
             np_img = np.array(img)
             ofs.write(np_img.astype('float32').tobytes())
             if idx % per_percentage == 0:
                 print_processbar(idx // per_percentage)
-            idx = idx + 1
-
         val_dict = {}
         for line_idx, line in enumerate(lines):
             if line_idx == FULL_IMAGES:
@@ -167,8 +163,8 @@ def convert_Imagenet_tar2bin(tar_file, output_file):
             name, label = line.split()
             val_dict[name] = label
 
-        for img_name in dataset.keys():
-            remove_len = (len(FOLDER_NAME))
+        remove_len = (len(FOLDER_NAME))
+        for img_name in dataset:
             img_name_prim = img_name[remove_len:]
             label = val_dict[img_name_prim]
             label_int = (int)(label)
@@ -196,7 +192,7 @@ def run_convert():
                 format(output_file))
             os.remove(output_file)
         if retry < try_limit:
-            retry = retry + 1
+            retry += 1
         else:
             raise RuntimeError(
                 "Can not convert the dataset to binary file with try limit {0}".

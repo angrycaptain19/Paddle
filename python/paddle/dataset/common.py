@@ -49,7 +49,6 @@ def must_mkdirs(path):
     except OSError as exc:
         if exc.errno != errno.EEXIST:
             raise
-        pass
 
 
 must_mkdirs(DATA_HOME)
@@ -57,10 +56,9 @@ must_mkdirs(DATA_HOME)
 
 def md5file(fname):
     hash_md5 = hashlib.md5()
-    f = open(fname, "rb")
-    for chunk in iter(lambda: f.read(4096), b""):
-        hash_md5.update(chunk)
-    f.close()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
 
@@ -78,7 +76,7 @@ def download(url, module_name, md5sum, save_name=None):
 
     retry = 0
     retry_limit = 3
-    while not (os.path.exists(filename) and md5file(filename) == md5sum):
+    while not os.path.exists(filename) or md5file(filename) != md5sum:
         if os.path.exists(filename):
             sys.stderr.write("file %s  md5 %s\n" % (md5file(filename), md5sum))
         if retry < retry_limit:
@@ -102,12 +100,10 @@ def download(url, module_name, md5sum, save_name=None):
                     total_length = int(total_length)
                     total_iter = total_length / chunk_size + 1
                     log_interval = total_iter / 20 if total_iter > 20 else 1
-                    log_index = 0
-                    for data in r.iter_content(chunk_size=chunk_size):
+                    for log_index, data in enumerate(r.iter_content(chunk_size=chunk_size), start=1):
                         if six.PY2:
                             data = six.b(data)
                         f.write(data)
-                        log_index += 1
                         if log_index % log_interval == 0:
                             sys.stderr.write(".")
                         sys.stdout.flush()
@@ -197,8 +193,7 @@ def cluster_files_reader(files_pattern,
         for fn in my_file_list:
             with open(fn, "r") as f:
                 lines = loader(f)
-                for line in lines:
-                    yield line
+                yield from lines
 
     return reader
 

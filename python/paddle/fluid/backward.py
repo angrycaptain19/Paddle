@@ -136,16 +136,12 @@ class ProgramStats(object):
                 if name in self.var_op_deps:
                     self.var_op_deps[name]["var_as_input_ops"].extend([i])
                 else:
-                    self.var_op_deps[name] = {}
-                    self.var_op_deps[name]["var_as_input_ops"] = [i]
-                    self.var_op_deps[name]["var_as_output_ops"] = []
-
+                    self.var_op_deps[name] = {"var_as_input_ops": [i], "var_as_output_ops": []}
             for j, name in enumerate(op.desc.output_arg_names()):
                 if name in self.var_op_deps:
                     self.var_op_deps[name]["var_as_output_ops"].extend([i])
                 else:
-                    self.var_op_deps[name] = {}
-                    self.var_op_deps[name]["var_as_input_ops"] = []
+                    self.var_op_deps[name] = {"var_as_input_ops": []}
                     self.var_op_deps[name]["var_as_output_ops"] = [i]
 
             for op_idx in self.op_deps[i]["in_ops"]:
@@ -205,10 +201,14 @@ class ProgramStats(object):
 
 
 def _pretty_op_desc_(op_desc, prefix):
-    out_s = "%s\tname:[%s]\n%s    \tinputs:[%s]\n%s    \toutputs:[%s]" % \
-            (prefix + "_op", str(op_desc.type()), prefix + "_input", " ".join(op_desc.input_arg_names()),
-             prefix + "_output", " ".join(op_desc.output_arg_names()))
-    return out_s
+    return "%s\tname:[%s]\n%s    \tinputs:[%s]\n%s    \toutputs:[%s]" % (
+        prefix + "_op",
+        str(op_desc.type()),
+        prefix + "_input",
+        " ".join(op_desc.input_arg_names()),
+        prefix + "_output",
+        " ".join(op_desc.output_arg_names()),
+    )
 
 
 def _add_needed_descs_to_block(descs, block, main_block, in_memory_vars):
@@ -327,7 +327,7 @@ def _create_op_desc_(op_type, inputs, outputs, attrs):
 
 
 def _create_loss_op_desc_(loss):
-    op_desc = _create_op_desc_(
+    return _create_op_desc_(
         "fill_constant", {}, {"Out": [_append_grad_suffix_(loss.name)]}, {
             "shape": [1],
             "value": 1.0,
@@ -339,7 +339,6 @@ def _create_loss_op_desc_(loss):
             core.op_proto_and_checker_maker.kOpDeviceAttrName():
             loss.op.attr(core.op_proto_and_checker_maker.kOpDeviceAttrName())
         })
-    return op_desc
 
 
 def _infer_var_data_type_shape_(grad_var_name, block):
@@ -362,10 +361,7 @@ def _all_in_set_(cands, s):
     """
     if len(cands) == 0:
         return False
-    for c in cands:
-        if not c in s:
-            return False
-    return True
+    return all(c in s for c in cands)
 
 
 def _some_in_set_(cands, s):
@@ -376,10 +372,7 @@ def _some_in_set_(cands, s):
         return False
     literal_set = cpt.to_text(s)
     literal_cands = cpt.to_text(cands)
-    for c in literal_cands:
-        if c in literal_set:
-            return True
-    return False
+    return any(c in literal_set for c in literal_cands)
 
 
 def _strip_grad_suffix_(name):
@@ -878,8 +871,7 @@ def _append_backward_ops_with_checkpoints_(
                 raise Exception("Recompute don't support ops with sub_block"
                                 "invoke op: %s" %
                                 _pretty_op_desc_(op.desc, "with_sub_block"))
-            input_and_output_names = []
-            input_and_output_names.extend(op.desc.input_arg_names())
+            input_and_output_names = list(op.desc.input_arg_names())
             input_and_output_names.extend(op.desc.output_arg_names())
             for name in input_and_output_names:
                 if block.var(name).persistable or name in checkpoints_name:
@@ -961,19 +953,16 @@ def _get_sub_block_path(sub_block,
 
         # Step2: find op path of sub-block
         is_while = sub_block_op_desc.type in ["while"]
-        sub_block_op_path = _find_op_path_(sub_block, sub_outputs, [],
+        return _find_op_path_(sub_block, sub_outputs, [],
                                            no_grad_set, op_path_dict, is_while)
-        return sub_block_op_path
     return sub_block.ops
 
 
 def _is_grad_op_(op):
     op_maker = core.op_proto_and_checker_maker
     backward = core.op_proto_and_checker_maker.OpRole.Backward
-    if op_maker.kOpRoleVarAttrName() in op.attr_names and \
-            int(op.all_attrs()[op_maker.kOpRoleAttrName()]) == int(backward):
-        return True
-    return False
+    return op_maker.kOpRoleVarAttrName() in op.attr_names and \
+            int(op.all_attrs()[op_maker.kOpRoleAttrName()]) == int(backward)
 
 
 def _rename_grad_name_(name, grad_order):
@@ -1092,7 +1081,7 @@ def _append_backward_ops_(block,
                 ]
                 # some code of gradient ops, like increment, are not very
                 # standard, there is no @GRAD in these ops' inputs.
-                if len(input_grad_names) == 0:
+                if not input_grad_names:
                     is_append_grad = True
                     break
 
@@ -1289,7 +1278,7 @@ def _rename_grad_(block, start_op_idx, grad_to_var, target_grad_map):
 
 
 def _get_stop_gradients_(program):
-    no_grad_dict = dict()
+    no_grad_dict = {}
     assert isinstance(program, framework.Program)
     for block in program.blocks:
         assert isinstance(block, framework.Block)

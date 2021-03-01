@@ -84,13 +84,14 @@ class LayerHelperBase(object):
         if isinstance(value, np.ndarray):
             assert in_dygraph_mode(
             ), "to_variable could only be called in dygraph mode"
-            py_var = core.VarBase(
+            return core.VarBase(
                 value=value,
-                name=name if name else '',
+                name=name or '',
                 persistable=False,
                 place=_current_expected_place(),
-                zero_copy=False)
-            return py_var
+                zero_copy=False,
+            )
+
         elif isinstance(value, (core.VarBase, Variable)):
             return value
         else:
@@ -141,11 +142,9 @@ class LayerHelperBase(object):
                 type='reduce_sum',
                 inputs={'X': pow_out},
                 outputs={'Out': sum_out},
-                attrs={
-                    'dim': dim,
-                    'keep_dim': keep_dim,
-                    'reduce_all': True if dim is None else False
-                })
+                attrs={'dim': dim, 'keep_dim': keep_dim, 'reduce_all': dim is None},
+            )
+
             block.append_op(
                 type='pow',
                 inputs={'X': sum_out},
@@ -329,9 +328,11 @@ class LayerHelperBase(object):
 
         if default_initializer is None and attr.initializer is None:
             if isinstance(dtype, core.VarDesc.VarType):
-                if dtype != core.VarDesc.VarType.FP32 and \
-                        dtype != core.VarDesc.VarType.FP64 and \
-                        dtype != core.VarDesc.VarType.FP16:
+                if dtype not in [
+                    core.VarDesc.VarType.FP32,
+                    core.VarDesc.VarType.FP64,
+                    core.VarDesc.VarType.FP16,
+                ]:
                     raise TypeError(
                         "Can not create parameter with default initializer when dtype is not float type. Set default_initializer to fit the parameter dtype!"
                     )

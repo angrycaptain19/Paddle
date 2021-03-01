@@ -365,8 +365,7 @@ class OptimizerWithMixedPrecision(object):
                         self._decr_ratio,
                         name="update_loss_scaling")
 
-        optimize_ops = self._optimizer.apply_gradients(params_grads)
-        return optimize_ops
+        return self._optimizer.apply_gradients(params_grads)
 
     def apply_optimize(self, loss, startup_program, params_grads):
         program = loss.block.program
@@ -518,9 +517,7 @@ def decorate(optimizer,
     if use_fp16_guard is None:
         use_fp16_guard = use_pure_fp16
 
-    mp_optimizer = OptimizerWithMixedPrecision(
+    return OptimizerWithMixedPrecision(
         optimizer, amp_lists, init_loss_scaling, use_dynamic_loss_scaling,
         incr_every_n_steps, decr_every_n_nan_or_inf, incr_ratio, decr_ratio,
         use_pure_fp16, use_fp16_guard)
-
-    return mp_optimizer

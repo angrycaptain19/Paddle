@@ -462,10 +462,7 @@ edge_set(${edge_set_type}) : $ { edge_set_comment }
                 'Filter': W},
         outputs={'Out': out, },
         attrs={'max_depth': max_depth})
-    if helper.bias_attr:
-        pre_activation = helper.append_bias_op(out)
-    else:
-        pre_activation = out
+    pre_activation = helper.append_bias_op(out) if helper.bias_attr else out
     return helper.append_activation(pre_activation)
 
 
@@ -952,9 +949,7 @@ def partial_sum(input, start_index=0, length=-1):
                                  'partial_sum')
 
     inputs = {'X': input}
-    attrs = {}
-    attrs['start_index'] = start_index
-    attrs['length'] = length
+    attrs = {'start_index': start_index, 'length': length}
     helper = LayerHelper('partial_sum', **locals())
     out = helper.create_variable_for_type_inference(dtype=helper.input_dtype())
     helper.append_op(

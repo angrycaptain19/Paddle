@@ -42,10 +42,7 @@ class LambOptimizer(MetaOptimizerBase):
 
             def exclude_fn(param):
                 exclude_list = configs['exclude_from_weight_decay']
-                for name in exclude_list:
-                    if param.name.endswith(name):
-                        return True
-                return False
+                return any(param.name.endswith(name) for name in exclude_list)
 
             _exclude_from_weight_decay_fn = exclude_fn
 

@@ -100,11 +100,10 @@ class Optimizer(object):
                     "learning rate should be float or LRScheduler, got %s here"
                     % type(learning_rate))
 
-        if grad_clip is not None:
-            if not isinstance(grad_clip, GradientClipBase):
-                raise TypeError(
-                    "'grad_clip' should be an instance of GradientClipBase's derived class"
-                )
+        if grad_clip is not None and not isinstance(grad_clip, GradientClipBase):
+            raise TypeError(
+                "'grad_clip' should be an instance of GradientClipBase's derived class"
+            )
         self.regularization = regularization
         self._grad_clip = grad_clip
         self._learning_rate = learning_rate
@@ -116,7 +115,7 @@ class Optimizer(object):
 
         # each program should have a independent learning rate
         # program -> Variable(learning_rate)
-        self._learning_rate_map = dict()
+        self._learning_rate_map = {}
         if isinstance(self._learning_rate, framework.Variable):
             self._learning_rate_map[framework.default_main_program(
             )] = self._learning_rate
@@ -128,7 +127,7 @@ class Optimizer(object):
         self.helper = None
         self._opti_name_list = []
         self._accumulators_holder = {}
-        self._param_device_map = dict()
+        self._param_device_map = {}
 
     @framework.dygraph_only
     def state_dict(self):
@@ -247,9 +246,7 @@ class Optimizer(object):
 
                 load_para = state_dict[var_tmp.name]
 
-                if isinstance(load_para, Variable):
-                    load_para_np = load_para.numpy()
-                elif isinstance(load_para, core.VarBase):
+                if isinstance(load_para, (Variable, core.VarBase)):
                     load_para_np = load_para.numpy()
                 elif isinstance(load_para, np.ndarray):
                     load_para_np = load_para
@@ -559,7 +556,7 @@ class Optimizer(object):
                 return self._accumulators[name][param.name]
             raise Exception("Accumulator {} already exists for parameter {}".
                             format(name, param.name))
-        if shape == None:
+        if shape is None:
             shape = param.shape
         assert isinstance(self.helper, LayerHelper)
 
@@ -580,11 +577,10 @@ class Optimizer(object):
             self.helper.set_variable_initializer(
                 var, initializer=Constant(value=float(fill_value)))
 
-        if framework.in_dygraph_mode():
-            if len(self._accumulators_holder) > 0:
-                assert var_name in self._accumulators_holder, \
-                        "Optimizer set error, {} should in state dict".format( var_name )
-                var.set_value(self._accumulators_holder[var_name])
+        if framework.in_dygraph_mode() and len(self._accumulators_holder) > 0:
+            assert var_name in self._accumulators_holder, \
+                    "Optimizer set error, {} should in state dict".format( var_name )
+            var.set_value(self._accumulators_holder[var_name])
 
         self._accumulators[name][param.name] = var
         return var
@@ -767,9 +763,7 @@ class Optimizer(object):
             See examples in ``apply_gradients``.
         """
         act_no_grad_set = None
-        if framework.in_dygraph_mode():
-            pass
-        else:
+        if not framework.in_dygraph_mode():
             act_no_grad_set = self._get_no_grad_set(loss, no_grad_set)
 
         # Infer dtype by loss if None
@@ -777,8 +771,7 @@ class Optimizer(object):
             self._dtype = loss.dtype
 
         if framework.in_dygraph_mode():
-            parameter_list = parameter_list if parameter_list \
-                else self._parameter_list
+            parameter_list = parameter_list or self._parameter_list
 
             params_grads = []
             for param in parameter_list:
@@ -798,8 +791,7 @@ class Optimizer(object):
                 "The loss.shape should be (1L,), but the current loss.shape is {}. " \
                 "Maybe that you should call fluid.layers.mean to process the current loss.".format(
                     loss.shape)
-            parameter_list = parameter_list if parameter_list \
-                else self._parameter_list
+            parameter_list = parameter_list or self._parameter_list
             with program_guard(program, startup_program):
                 params_grads = append_backward(loss, parameter_list,
                                                act_no_grad_set, callbacks)
@@ -840,8 +832,7 @@ class Optimizer(object):
         params_grads = append_regularization_ops(params_grads,
                                                  self.regularization)
 
-        optimize_ops = self._create_optimization_pass(params_grads)
-        return optimize_ops
+        return self._create_optimization_pass(params_grads)
 
     def apply_optimize(self, loss, startup_program, params_grads):
         """
@@ -872,8 +863,10 @@ class Optimizer(object):
     def _get_no_grad_set(self, loss, no_grad_set=None):
         no_grad_set = _get_no_grad_set_name(no_grad_set)
         parameters = loss.block.program.global_block().all_parameters()
-        param_no_trainable = set(
-            [param.name for param in parameters if param.trainable is False])
+        param_no_trainable = {
+            param.name for param in parameters if param.trainable is False
+        }
+
         # If the parameter is no trainable, it should not have a gradient.
         no_grad_set.update(param_no_trainable)
 
@@ -945,8 +938,7 @@ class Optimizer(object):
         """
         assert isinstance(loss, Variable), "The loss should be an Variable."
 
-        parameter_list = parameter_list if parameter_list \
-            else self._parameter_list
+        parameter_list = parameter_list or self._parameter_list
 
         params_grads = self.backward(
             loss,
@@ -1330,12 +1322,12 @@ class DGCMomentumOptimizer(Optimizer):
 
     def _is_use_dgc(self, param_var, grad_var):
         var_numel = abs(reduce(lambda x, y: x * y, param_var.shape))
-        if var_numel < 16384 or \
-           param_var.type == core.VarDesc.VarType.SELECTED_ROWS  or \
-           grad_var.type == core.VarDesc.VarType.SELECTED_ROWS  or  \
-               param_var.dtype != core.VarDesc.VarType.FP32 :
-            return False
-        return True
+        return (
+            var_numel >= 16384
+            and param_var.type != core.VarDesc.VarType.SELECTED_ROWS
+            and grad_var.type != core.VarDesc.VarType.SELECTED_ROWS
+            and param_var.dtype == core.VarDesc.VarType.FP32
+        )
 
     def _append_optimize_op(self, block, param_and_grad):
         assert isinstance(block, framework.Block)
@@ -1489,10 +1481,8 @@ class DGCMomentumOptimizer(Optimizer):
     def _is_the_backward_op(self, op):
         op_maker = core.op_proto_and_checker_maker
         backward = core.op_proto_and_checker_maker.OpRole.Backward
-        if op_maker.kOpRoleVarAttrName() in op.attr_names and \
-                int(op.all_attrs()[op_maker.kOpRoleAttrName()]) == int(backward):
-            return True
-        return False
+        return op_maker.kOpRoleVarAttrName() in op.attr_names and \
+                int(op.all_attrs()[op_maker.kOpRoleAttrName()]) == int(backward)
 
     def _clip_by_norm(self, x, max_norm, name=None):
         args = {'x': x, 'max_norm': max_norm, 'name': name}
@@ -2113,14 +2103,12 @@ class AdamOptimizer(Optimizer):
         else:
             attrs['beta2'] = self._beta2
 
-        adam_op = block.append_op(
+        return block.append_op(
             type=self.type,
             inputs=inputs,
             outputs=outputs,
             attrs=attrs,
             stop_gradient=True)
-
-        return adam_op
 
 
 class AdamaxOptimizer(Optimizer):
@@ -2368,10 +2356,10 @@ class DpsgdOptimizer(Optimizer):
         assert isinstance(block, framework.Block)
 
         # create the dpsgd optimize op
-        if self._seed == None:
+        if self._seed is None:
             self._seed = 0
 
-        dpsgd_op = block.append_op(
+        return block.append_op(
             type=self.type,
             inputs={
                 "Param": param_and_grad[0],
@@ -2386,8 +2374,6 @@ class DpsgdOptimizer(Optimizer):
                 "seed": self._seed
             },
             stop_gradient=True)
-
-        return dpsgd_op
 
 
 class DecayedAdagradOptimizer(Optimizer):
@@ -2780,7 +2766,7 @@ class RMSPropOptimizer(Optimizer):
                                                 param_and_grad[0])
         mean_grad_acc = self._get_accumulator(self._mean_grad_acc_str,
                                               param_and_grad[0])
-        rmsprop_op = block.append_op(
+        return block.append_op(
             type=self.type,
             inputs={
                 "Param": param_and_grad[0],
@@ -2803,8 +2789,6 @@ class RMSPropOptimizer(Optimizer):
                 "centered": self._centered
             },
             stop_gradient=True)
-
-        return rmsprop_op
 
 
 class FtrlOptimizer(Optimizer):
@@ -2944,7 +2928,7 @@ class FtrlOptimizer(Optimizer):
                                             param_and_grad[0])
         linear_acc = self._get_accumulator(self._linear_acc_str,
                                            param_and_grad[0])
-        ftrl_op = block.append_op(
+        return block.append_op(
             type=self.type,
             inputs={
                 "Param": param_and_grad[0],
@@ -2962,8 +2946,6 @@ class FtrlOptimizer(Optimizer):
                    "l2": self._l2,
                    "lr_power": self._lr_power},
             stop_gradient=True)
-
-        return ftrl_op
 
 
 class LambOptimizer(AdamOptimizer):
@@ -3306,7 +3288,9 @@ class ModelAverage(Optimizer):
         tmp = layers.cast(
             x=tmp, dtype='float32' if self._dtype == None else self._dtype)
         sum = layers.cast(
-            x=sum, dtype='float32' if self._dtype == None else self._dtype)
+            x=sum, dtype='float32' if self._dtype is None else self._dtype
+        )
+
         ops._elementwise_div(x=sum, y=tmp, out=param)
 
     def _add_average_restore_op(self, block, param_grad):
@@ -3649,14 +3633,12 @@ class ExponentialMovingAverage(object):
         return decay_pow_acc, global_step
 
     def _create_ema_vars(self, param):
-        param_ema = layers.create_global_var(
+        return layers.create_global_var(
             name=unique_name.generate(self._name + param.name + '_ema'),
             shape=param.shape,
             value=0.0,
             dtype=param.dtype,
             persistable=True)
-
-        return param_ema
 
     def update(self):
         """ 
@@ -3850,7 +3832,7 @@ class PipelineOptimizer(object):
         """
         programs = []
         # Map from device to its corresponding section program info
-        device_program_map = dict()
+        device_program_map = {}
         for device in devices:
             p = {'program': Program()}
             device_program_map[device] = p
@@ -3861,16 +3843,18 @@ class PipelineOptimizer(object):
             op_role = op.attr(self._op_role_key)
             if int(op_role) & int(self._op_role.LRSched):
                 # Copy ops of the role LRSched to all sections.
-                for device in device_program_map.keys():
-                    program = device_program_map[device]
+                for device, program in device_program_map.items():
                     op_desc = op.desc
                     ap_op = program["program"].block(0).desc.append_op()
                     ap_op.copy_from(op_desc)
-                    # ap_op._set_attr(self._op_device_key, "")
-            elif op.type == "create_py_reader" or op.type == "read" or op.type == "create_double_buffer_reader":
+                                # ap_op._set_attr(self._op_device_key, "")
+            elif op.type in [
+                "create_py_reader",
+                "read",
+                "create_double_buffer_reader",
+            ]:
                 # Copy read related ops to all section to make them exit after each epoch.
-                for device in device_program_map.keys():
-                    program = device_program_map[device]
+                for device, program in device_program_map.items():
                     op_desc = op.desc
                     ap_op = program["program"].block(0).desc.append_op()
                     ap_op.copy_from(op_desc)
@@ -3896,8 +3880,7 @@ class PipelineOptimizer(object):
         """
         assert "beta1_pow_acc" in var_name or "beta2_pow_acc" in var_name
         param_name = var_name[0:var_name.index('_beta')]
-        device = self._param_device_map[param_name]
-        return device
+        return self._param_device_map[param_name]
 
     def _split_startup_program(self, startup_program, local_rank):
         block = startup_program.block(0)
@@ -3965,7 +3948,7 @@ class PipelineOptimizer(object):
         """
         prev_op = []
         for op in ops:
-            if op.type == 'send_v2' or op.type == 'recv_v2':
+            if op.type in ['send_v2', 'recv_v2']:
                 continue
             if op == cur_op:
                 break
@@ -3992,7 +3975,7 @@ class PipelineOptimizer(object):
         shape and dtype as ref_var, then rename it with the
         name `name`.
         """
-        new_var = block.create_var(
+        return block.create_var(
             name=name,
             shape=ref_var.shape,
             dtype=ref_var.dtype,
@@ -4001,14 +3984,13 @@ class PipelineOptimizer(object):
             persistable=False,
             is_data=False,
             need_check_feed=ref_var.desc.need_check_feed())
-        return new_var
 
     def _get_data_var_info(self, block):
         """
         Get info of all vars whose is_data attribute are true.
         """
         # map of data vars to devices that that data on
-        data_devices_map = dict()
+        data_devices_map = {}
         for op in block.ops:
             dev_spec = op.attr(self._op_device_key)
             for var_name in op.input_arg_names:
@@ -4016,9 +3998,9 @@ class PipelineOptimizer(object):
                 var = block.var(var_name)
                 if not var.is_data:
                     continue
-                if not var_name in data_devices_map:
+                if var_name not in data_devices_map:
                     data_devices_map[var_name] = []
-                if not dev_spec in data_devices_map[var_name]:
+                if dev_spec not in data_devices_map[var_name]:
                     data_devices_map[var_name].append(dev_spec)
         return data_devices_map
 
@@ -4050,7 +4032,7 @@ class PipelineOptimizer(object):
                 if device == first_dev_spec: continue
                 main_var = main_block.var(var_name)
                 assert main_var.is_data
-                if not var_name in first_block.vars:
+                if var_name not in first_block.vars:
                     self._create_var(first_block, main_var, var_name)
                 dev_index = int(device.split(':')[1])
                 first_block._insert_op(
@@ -4187,7 +4169,7 @@ class PipelineOptimizer(object):
             dev_type = dev_spec.split(':')[0]
             assert dev_type == "gpu", ("Now only gpu devices are supported "
                                        "for pipeline parallelism.")
-            if not dev_spec in device_specs:
+            if dev_spec not in device_specs:
                 device_specs.append(dev_spec)
         return device_specs
 
@@ -4200,7 +4182,7 @@ class PipelineOptimizer(object):
 
         # A map from var to device spec where op takes it as input,
         # avoiding multiple send and recv ops.
-        var_devspec = dict()
+        var_devspec = {}
 
         for index, op in enumerate(list(block.ops)):
             # skips lr-related ops and vars, as we will process them later.
@@ -4213,7 +4195,7 @@ class PipelineOptimizer(object):
             for var_name in op.input_arg_names:
                 # i.e., lod_tensor_blocking_queue created by DataLoader,
                 # which only exists in startup program.
-                if not var_name in block.vars: continue
+                if var_name not in block.vars: continue
                 var = block.var(var_name)
                 # skip data, because we will process it later
                 if var.is_data: continue
@@ -4353,8 +4335,7 @@ class PipelineOptimizer(object):
     def _get_device_info(self, block):
         for op in block.ops:
             if not op._has_kernel(op.type): continue
-            op_device = op.attr(self._op_device_key)
-            return op_device
+            return op.attr(self._op_device_key)
 
     def _process_persistable_vars_in_multi_sections(self, main_program,
                                                     startup_prog, program_list):
@@ -4364,7 +4345,7 @@ class PipelineOptimizer(object):
         """
         # var_info = {var_name: [program1, program2...]},
         # persistable var only
-        var_info = dict()
+        var_info = {}
         for prog_info in program_list:
             prog = prog_info['program']
             block = prog.block(0)
@@ -4372,9 +4353,9 @@ class PipelineOptimizer(object):
                 if var_name == "double_buffer_0": continue
                 var = block.var(var_name)
                 if not var.persistable: continue
-                if not var_name in var_info:
+                if var_name not in var_info:
                     var_info[var_name] = []
-                if not prog in var_info[var_name]:
+                if prog not in var_info[var_name]:
                     var_info[var_name].append(prog)
         for var_name in list(var_info.keys()):
             if len(var_info[var_name]) == 1:
@@ -4382,13 +4363,12 @@ class PipelineOptimizer(object):
 
         # write_info = {var_name: program}, where program is the only program
         # in which the var named var_name is written.
-        write_info = dict()
-        for var_name in var_info.keys():
-            for prog in var_info[var_name]:
+        write_info = {}
+        for var_name, value in var_info.items():
+            for prog in value:
                 block = prog.block(0)
                 for op in block.ops:
-                    if op.type == "recv_v2" or op.type == "create_py_reader" or \
-                        op.type == "read":
+                    if op.type in ["recv_v2", "create_py_reader", "read"]:
                         continue
                     # We have processed lr related vars
                     if op.attr(self._op_role_key) == int(
@@ -4401,16 +4381,15 @@ class PipelineOptimizer(object):
                         write_info[var_name] = prog
                         break
 
-        for var_name in var_info.keys():
+        for var_name, all_progs in var_info.items():
             # Case 1: read only variables, no special process
-            if not var_name in write_info: continue
+            if var_name not in write_info: continue
 
             # Case 2: one write multiple reads
             write_prog = write_info[var_name]
             write_block = write_prog.block(0)
             write_device = self._get_device_info(write_block)
             write_dev_index = int(write_device.split(':')[1])
-            all_progs = var_info[var_name]
             for prog in all_progs:
                 if prog == write_prog: continue
                 read_block = prog.block(0)
@@ -4627,9 +4606,10 @@ class RecomputeOptimizer(Optimizer):
             checkpoints, list
         ), "_checkpoints should be a list of Variable or a list of String"
         for ckpt in checkpoints:
-            assert (
-                isinstance(ckpt, six.string_types) or isinstance(ckpt, Variable)
+            assert isinstance(
+                ckpt, (six.string_types, Variable)
             ), "_checkpoints should be a list of Variable or a list of String"
+
         self._checkpoints = checkpoints
 
     # should enable offload before calling backward 
@@ -4866,29 +4846,28 @@ class RecomputeOptimizer(Optimizer):
 
             for input_var in input_vars:
                 if input_var in need_fetch_checkpoint_names:
-                    if input_var not in self.un_fetch_checkpoint_names:
-                        # fetch the  offloade checkpoint when the first usage of its previous one
-                        if self.checkpoint_usage_count[input_var] == 0:
-                            # TODO (JZ-LIANG) sync memcpy_stream if extra stream for memcpy
-                            second_to_last_fetch_checkpoint = fetched_checkpoint_varname
-                            # there is NO fetch ahead the first checkpoint 
-                            if input_var != self.sorted_checkpoint_names[0]:
-                                fetched_checkpoint_varname = self._record_fetch_op(
-                                    idx)
-
-                        # should check the current used checkpoint is ths last fetch one 
-                        assert second_to_last_fetch_checkpoint == input_var, "Current recompute segment should use [{}] BUT got [{}]".format(
-                            second_to_last_fetch_checkpoint, input_var)
-                        # rename
-                        self.block.ops[idx]._rename_input(
-                            input_var,
-                            self.checkpoint_name2fetch_name[input_var])
-                        self.checkpoint_usage_count[input_var] += 1
-                    else:
+                    if input_var in self.un_fetch_checkpoint_names:
                         raise ValueError(
                             "use checkpoint [{}] before fetch in BW".format(
                                 input_var))
 
+                    # fetch the  offloade checkpoint when the first usage of its previous one
+                    if self.checkpoint_usage_count[input_var] == 0:
+                        # TODO (JZ-LIANG) sync memcpy_stream if extra stream for memcpy
+                        second_to_last_fetch_checkpoint = fetched_checkpoint_varname
+                        # there is NO fetch ahead the first checkpoint 
+                        if input_var != self.sorted_checkpoint_names[0]:
+                            fetched_checkpoint_varname = self._record_fetch_op(
+                                idx)
+
+                    # should check the current used checkpoint is ths last fetch one 
+                    assert second_to_last_fetch_checkpoint == input_var, "Current recompute segment should use [{}] BUT got [{}]".format(
+                        second_to_last_fetch_checkpoint, input_var)
+                    # rename
+                    self.block.ops[idx]._rename_input(
+                        input_var,
+                        self.checkpoint_name2fetch_name[input_var])
+                    self.checkpoint_usage_count[input_var] += 1
         assert len(self.un_fetch_checkpoint_names
                    ) == 0, "{} checkpoints have NOT been Recorded".format(
                        self.un_fetch_checkpoint_names)
@@ -4951,27 +4930,26 @@ class RecomputeOptimizer(Optimizer):
                     ) == 1, "chekpoint should be the only Output of a certain op, but [{}] is from [{}]".format(
                         output_var, op)
 
-                    if output_var in self.un_offload_checkpoint_names:
-                        # insert sync op if last checkpoint has not been sync
-                        if last_offload_checkpoint != None:
-                            if self.checkpoint_usage_count_and_idx[
-                                    last_offload_checkpoint]['count'] == 0:
-                                self._record_sync_op(idx,
-                                                     last_offload_checkpoint)
-                            else:
-                                last_usage_idx = self.checkpoint_usage_count_and_idx[
-                                    last_offload_checkpoint]['idx']
-                                assert last_usage_idx > 0, "last_usage_idx of checkpoint [{}] should large than 0".format(
-                                    last_offload_checkpoint)
-                                self._record_sync_op(last_usage_idx + 1,
-                                                     last_offload_checkpoint)
-                        # insert offload op after the checkpoint's generation op
-                        self._record_offload_op(idx + 1, output_var)
-                        last_offload_checkpoint = output_var
-                    else:
+                    if output_var not in self.un_offload_checkpoint_names:
                         raise ValueError(
                             "There should be just ONE op that output checkpoint [{}]".
                             format(output_var))
+                    # insert sync op if last checkpoint has not been sync
+                    if last_offload_checkpoint != None:
+                        if self.checkpoint_usage_count_and_idx[
+                                last_offload_checkpoint]['count'] == 0:
+                            self._record_sync_op(idx,
+                                                 last_offload_checkpoint)
+                        else:
+                            last_usage_idx = self.checkpoint_usage_count_and_idx[
+                                last_offload_checkpoint]['idx']
+                            assert last_usage_idx > 0, "last_usage_idx of checkpoint [{}] should large than 0".format(
+                                last_offload_checkpoint)
+                            self._record_sync_op(last_usage_idx + 1,
+                                                 last_offload_checkpoint)
+                    # insert offload op after the checkpoint's generation op
+                    self._record_offload_op(idx + 1, output_var)
+                    last_offload_checkpoint = output_var
                 # need to sync the last need to offload checkpoint before the last checkpoint as output op
                 if output_var == last_checkpoint:
                     assert len(
